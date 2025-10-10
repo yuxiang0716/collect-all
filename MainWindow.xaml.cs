@@ -13,7 +13,6 @@ using System.Drawing;      // Icon
 using LibreHardwareMonitor.Hardware;
 using Microsoft.Win32;
 
-
 namespace collect_all
 {
     public partial class MainWindow : Window
@@ -25,137 +24,98 @@ namespace collect_all
         public ObservableCollection<BasicInfoData> SmartItems { get; set; }
 
         private Computer _computer;
-
-        // Tray icon
         private NotifyIcon m_notifyIcon;
         private WindowState m_storedWindowState = WindowState.Normal;
 
         public MainWindow()
-{
-    InitializeComponent();
-
-    this.WindowState = WindowState.Minimized;
-    this.Hide();
-
-    SystemInfoItems = new ObservableCollection<BasicInfoData>();
-    HardwareItems = new ObservableCollection<BasicInfoData>();
-    StorageVgaItems = new ObservableCollection<BasicInfoData>();
-    TemperatureItems = new ObservableCollection<BasicInfoData>();
-    SmartItems = new ObservableCollection<BasicInfoData>();
-    DataContext = this;
-
-    // LibreHardwareMonitor
-    _computer = new Computer()
-    {
-        IsCpuEnabled = true,
-        IsGpuEnabled = true,
-        IsMotherboardEnabled = true,
-        IsStorageEnabled = true
-    };
-    _computer.Open();
-
-    // ✅ 確保只註冊一次自啟動
-    EnsureStartup();
-
-    // Tray Icon
-    m_notifyIcon = new NotifyIcon
-    {
-        BalloonTipText = "The app has been minimised. Click the tray icon to show.",
-        BalloonTipTitle = "系統資訊收集器",
-        Text = "系統資訊收集器"
-    };
-    try
-    {
-        m_notifyIcon.Icon = new Icon("TheAppIcon.ico"); // 專案目錄放 ico
-    }
-    catch { }
-    m_notifyIcon.MouseClick += m_notifyIcon_MouseClick;
-
-    var contextMenu = new ContextMenuStrip();
-    var exitItem = new ToolStripMenuItem("退出");
-    exitItem.Click += (s, e) =>
-    {
-        m_notifyIcon.Visible = false;
-        System.Windows.Application.Current.Shutdown();
-    };
-    contextMenu.Items.Add(exitItem);
-    m_notifyIcon.ContextMenuStrip = contextMenu;
-
-    // Events
-    this.StateChanged += OnStateChanged;
-    this.IsVisibleChanged += OnIsVisibleChanged;
-    this.Closing += OnClose;
-
-    // 初始化抓取資訊
-    CollectStaticInfo();
-    UpdateSensors();
-
-    // 背景更新
-    Task.Run(() =>
-    {
-        while (true)
         {
-            UpdateSensors();
-            Thread.Sleep(600000);
-        }
-    });
+            InitializeComponent();
 
-    // 移除縮小按鈕
-    this.WindowStyle = WindowStyle.SingleBorderWindow;
-    this.ResizeMode = ResizeMode.CanMinimize;
+            StartupCheckBox.IsChecked = StartupManager.IsStartupSet();
 
-    m_notifyIcon.Visible = true; // 一開始就顯示
-}
+            this.WindowState = WindowState.Minimized;
+            this.Hide();
 
-// 🔹 新增方法：確保自啟動只寫一次
-private void EnsureStartup()
-{
-    try
-    {
-        string exePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "collect-all.exe");
-        using var rk = Registry.CurrentUser.OpenSubKey(
-            @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", true);
+            SystemInfoItems = new ObservableCollection<BasicInfoData>();
+            HardwareItems = new ObservableCollection<BasicInfoData>();
+            StorageVgaItems = new ObservableCollection<BasicInfoData>();
+            TemperatureItems = new ObservableCollection<BasicInfoData>();
+            SmartItems = new ObservableCollection<BasicInfoData>();
+            DataContext = this;
 
-        if (rk.GetValue("CollectAll") == null)
-        {
-            rk.SetValue("CollectAll", "\"" + exePath + "\"");
-        }
-    }
-    catch
-    {
-        // 可加上錯誤處理
-    }
-}
-
-
-        
-
-        
-        private void SetStartup(bool enable)
-        {
-            string appName = "系統資訊收集器";
-            string exePath = System.Reflection.Assembly.GetExecutingAssembly().Location;
-
-            RegistryKey rk = Registry.CurrentUser.OpenSubKey(
-                @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", true);
-
-            if (enable)
+            _computer = new Computer()
             {
-                rk.SetValue(appName, exePath);
+                IsCpuEnabled = true,
+                IsGpuEnabled = true,
+                IsMotherboardEnabled = true,
+                IsStorageEnabled = true
+            };
+            _computer.Open();
+            
+            m_notifyIcon = new NotifyIcon
+            {
+                BalloonTipText = "The app has been minimised. Click the tray icon to show.",
+                BalloonTipTitle = "系統資訊收集器",
+                Text = "系統資訊收集器"
+            };
+            try
+            {
+                m_notifyIcon.Icon = new Icon("TheAppIcon.ico");
+            }
+            catch { }
+            m_notifyIcon.MouseClick += m_notifyIcon_MouseClick;
+
+            var contextMenu = new ContextMenuStrip();
+            var exitItem = new ToolStripMenuItem("退出");
+            exitItem.Click += (s, e) =>
+            {
+                m_notifyIcon.Visible = false;
+                System.Windows.Application.Current.Shutdown();
+            };
+            contextMenu.Items.Add(exitItem);
+            m_notifyIcon.ContextMenuStrip = contextMenu;
+            
+            this.StateChanged += OnStateChanged;
+            this.IsVisibleChanged += OnIsVisibleChanged;
+            this.Closing += OnClose;
+            
+            CollectStaticInfo();
+            UpdateSensors();
+
+            Task.Run(() =>
+            {
+                while (true)
+                {
+                    UpdateSensors();
+                    Thread.Sleep(600000);
+                }
+            });
+            
+            this.WindowStyle = WindowStyle.SingleBorderWindow;
+            this.ResizeMode = ResizeMode.CanMinimize;
+
+            m_notifyIcon.Visible = true;
+        }
+
+        private void StartupCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (StartupCheckBox.IsChecked == true)
+            {
+                if (!StartupManager.SetStartup())
+                {
+                    System.Windows.MessageBox.Show("設定開機啟動失敗！", "錯誤", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
             }
             else
             {
-                rk.DeleteValue(appName, false);
+                if (!StartupManager.RemoveStartup())
+                {
+                    System.Windows.MessageBox.Show("移除開機啟動失敗！", "錯誤", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
             }
         }
 
-
-        
-
-
-
         #region Tray Events
-
         private void OnClose(object? sender, System.ComponentModel.CancelEventArgs args)
         {
             args.Cancel = true;
@@ -178,8 +138,6 @@ private void EnsureStartup()
             }
         }
 
-
-
         private void OnIsVisibleChanged(object? sender, DependencyPropertyChangedEventArgs args)
         {
             ShowTrayIcon(!IsVisible);
@@ -200,15 +158,12 @@ private void EnsureStartup()
                 WindowState = m_storedWindowState;
                 Activate();
             }
-            // 如果是右鍵就只顯示選單，不顯示視窗
         }
 
-        // 🔹 手動刷新按鈕事件
         private void RefreshButton_Click(object sender, RoutedEventArgs e)
         {
-            UpdateSensors(); // 立即更新溫度與 SMART 資訊
+            UpdateSensors();
         }
-
 
         private void ShowTrayIcon(bool show)
         {
@@ -216,7 +171,6 @@ private void EnsureStartup()
                 m_notifyIcon.Visible = show;
         }
 
-        // 🔹 登入 / 註冊按鈕事件
         private void Login_Click(object sender, RoutedEventArgs e)
         {
             new LoginWindow().ShowDialog();
@@ -226,12 +180,9 @@ private void EnsureStartup()
         {
             new RegisterWindow().ShowDialog();
         }
-
-
         #endregion
 
         #region 靜態資訊
-
         private void CollectStaticInfo()
         {
             System.Windows.Application.Current.Dispatcher.Invoke(() =>
@@ -258,7 +209,6 @@ private void EnsureStartup()
                 var allDrives = GetAllDrivesInfo();
                 foreach (var d in allDrives)
                     StorageVgaItems.Add(d);
-
             });
         }
 
@@ -275,22 +225,18 @@ private void EnsureStartup()
                 foreach (var s in smartList) SmartItems.Add(s);
             });
         }
-
         #endregion
 
         #region 溫度 & SMART
-
         private ObservableCollection<BasicInfoData> GetTemperatures()
         {
             var list = new ObservableCollection<BasicInfoData>();
             bool cpuFound = false, gpuFound = false, hddFound = false, mbFound = false;
-
             try
             {
                 foreach (var hw in _computer.Hardware)
                 {
                     hw.Update();
-
                     if (hw.HardwareType == HardwareType.Cpu && !cpuFound)
                     {
                         foreach (var s in hw.Sensors)
@@ -301,7 +247,6 @@ private void EnsureStartup()
                                 break;
                             }
                     }
-
                     if (hw.HardwareType == HardwareType.Motherboard && !mbFound)
                     {
                         foreach (var s in hw.Sensors)
@@ -312,10 +257,7 @@ private void EnsureStartup()
                                 break;
                             }
                     }
-
-                    if ((hw.HardwareType == HardwareType.GpuNvidia ||
-                        hw.HardwareType == HardwareType.GpuAmd ||
-                        hw.HardwareType == HardwareType.GpuIntel) && !gpuFound)
+                    if ((hw.HardwareType == HardwareType.GpuNvidia || hw.HardwareType == HardwareType.GpuAmd || hw.HardwareType == HardwareType.GpuIntel) && !gpuFound)
                     {
                         foreach (var s in hw.Sensors)
                             if (s.SensorType == SensorType.Temperature && s.Value.HasValue)
@@ -325,7 +267,6 @@ private void EnsureStartup()
                                 break;
                             }
                     }
-
                     if (hw.HardwareType == HardwareType.Storage && !hddFound)
                     {
                         foreach (var s in hw.Sensors)
@@ -339,12 +280,10 @@ private void EnsureStartup()
                 }
             }
             catch { }
-
             if (!cpuFound) list.Add(new BasicInfoData("CPU 溫度", "N/A"));
             if (!mbFound) list.Add(new BasicInfoData("主機板溫度", "N/A"));
             if (!gpuFound) list.Add(new BasicInfoData("顯示卡溫度", "N/A"));
             if (!hddFound) list.Add(new BasicInfoData("硬碟溫度", "N/A"));
-
             return list;
         }
 
@@ -366,11 +305,9 @@ private void EnsureStartup()
             catch { list.Add(new BasicInfoData("硬碟健康度", "N/A")); }
             return list;
         }
-
         #endregion
 
         #region 靜態硬體資訊方法
-
         private string GetCpuName()
         {
             try { using var s = new ManagementObjectSearcher("select Name from Win32_Processor"); foreach (var i in s.Get()) return i["Name"]?.ToString() ?? "N/A"; return "N/A"; }
@@ -428,18 +365,6 @@ private void EnsureStartup()
             catch { return "N/A"; }
         }
 
-        private string GetDriveTotal(string d)
-        {
-            try { var di = new DriveInfo(d); if (di.IsReady) return (di.TotalSize / 1024.0 / 1024 / 1024).ToString("0.00"); return "N/A"; }
-            catch { return "N/A"; }
-        }
-
-        private string GetDriveFree(string d)
-        {
-            try { var di = new DriveInfo(d); if (di.IsReady) return (di.AvailableFreeSpace / 1024.0 / 1024 / 1024).ToString("0.00"); return "N/A"; }
-            catch { return "N/A"; }
-        }
-
         private string GetWindowsVersion()
         {
             try { using var s = new ManagementObjectSearcher("SELECT * FROM Win32_OperatingSystem"); foreach (var i in s.Get()) return i["Version"]?.ToString() ?? "N/A"; return "N/A"; }
@@ -453,23 +378,13 @@ private void EnsureStartup()
                 foreach (var drive in DriveInfo.GetDrives())
                 {
                     if (!drive.IsReady) continue;
-
-                    list.Add(new BasicInfoData(
-                        $"{drive.Name} 總容量 (GB)",
-                        (drive.TotalSize / 1024.0 / 1024 / 1024).ToString("0.00")
-                    ));
-
-                    list.Add(new BasicInfoData(
-                        $"{drive.Name} 剩餘容量 (GB)",
-                        (drive.AvailableFreeSpace / 1024.0 / 1024 / 1024).ToString("0.00")
-                    ));
+                    list.Add(new BasicInfoData($"{drive.Name} 總容量 (GB)", (drive.TotalSize / 1024.0 / 1024 / 1024).ToString("0.00")));
+                    list.Add(new BasicInfoData($"{drive.Name} 剩餘容量 (GB)", (drive.AvailableFreeSpace / 1024.0 / 1024 / 1024).ToString("0.00")));
                 }
             }
             catch { list.Add(new BasicInfoData("磁碟資訊", "N/A")); }
-
             return list;
         }
-
 
         private string GetLocalIPv4()
         {
@@ -500,7 +415,6 @@ private void EnsureStartup()
             }
             catch { return "N/A"; }
         }
-
         #endregion
     }
 

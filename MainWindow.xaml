@@ -66,6 +66,19 @@
                     </DataGrid>
                 </Grid>
             </TabItem>
+
+            <TabItem Header="設定">
+                <StackPanel Margin="15">
+                    <CheckBox x:Name="StartupCheckBox" 
+                              Content="開機時自動啟動本程式"
+                              FontSize="16"
+                              Checked="StartupCheckBox_Changed"
+                              Unchecked="StartupCheckBox_Changed" />
+                    <TextBlock Margin="20,5,0,0" Foreground="Gray">
+                        
+                    </TextBlock>
+                </StackPanel>
+            </TabItem>
             
         </TabControl>
     </Grid>
