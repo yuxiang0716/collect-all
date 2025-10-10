@@ -1,0 +1,15 @@
+# Visual Studio and .NET project files to ignore
+
+# Compiled output and object files
+[Bb]in/
+[Oo]bj/
+*.pdb
+*.exe
+*.dll
+
+# User-specific files
+*.user
+*.suo
+
+# VS Code settings
+.vscode/
