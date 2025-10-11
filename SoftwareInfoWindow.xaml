@@ -1,0 +1,29 @@
+<Window x:Class="collect_all.SoftwareInfoWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:collect_all"
+        mc:Ignorable="d"
+        Title="已安裝的軟體資訊" Height="600" Width="900">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock x:Name="SoftwareCountTextBlock" Grid.Row="0" FontSize="16" FontWeight="Bold" Margin="0,0,0,10"/>
+
+        <DataGrid x:Name="SoftwareDataGrid" Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True"
+                  ItemsSource="{Binding}" CanUserAddRows="False">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="編號" Binding="{Binding Number}" Width="60"/>
+                <DataGridTextColumn Header="名稱" Binding="{Binding DisplayName}" Width="2*"/>
+                <DataGridTextColumn Header="發行者" Binding="{Binding Publisher}" Width="*"/>
+                <DataGridTextColumn Header="安裝日期" Binding="{Binding InstallDate}" Width="110"/>
+                <DataGridTextColumn Header="版本" Binding="{Binding DisplayVersion}" Width="110"/>
+                <DataGridTextColumn Header="登錄檔寫入時間" Binding="{Binding LastUpdate}" Width="160"/>
+            </DataGrid.Columns>
+        </DataGrid>
+    </Grid>
+</Window>

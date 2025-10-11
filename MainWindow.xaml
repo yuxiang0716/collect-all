@@ -77,6 +77,13 @@
                     <TextBlock Margin="20,5,0,0" Foreground="Gray">
                         
                     </TextBlock>
+                
+
+                <Button Content="顯示已安裝軟體" 
+                    Click="ShowSoftwareInfo_Click" 
+                    Margin="10" 
+                    Padding="10,5"/>
+                    
                 </StackPanel>
             </TabItem>
             

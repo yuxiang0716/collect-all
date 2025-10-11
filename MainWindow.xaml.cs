@@ -212,6 +212,14 @@ namespace collect_all
             });
         }
 
+        private void ShowSoftwareInfo_Click(object sender, RoutedEventArgs e)
+        {
+            // 建立我們剛剛新增的 SoftwareInfoWindow 視窗
+            SoftwareInfoWindow softwareWindow = new SoftwareInfoWindow();
+    
+            // 顯示這個新視窗
+            softwareWindow.Show(); 
+        }
         private void UpdateSensors()
         {
             var temps = GetTemperatures();
