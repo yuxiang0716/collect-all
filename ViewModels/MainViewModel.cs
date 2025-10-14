@@ -78,10 +78,14 @@
                     }
                 });
 
-                RegisterCommand = new RelayCommand(_ => new RegisterWindow().ShowDialog());
-                
-                // 載入所有初始資訊，並在背景自動傳送
-                LoadStaticInfoAndSendToDb();
+                RegisterCommand = new RelayCommand(_ =>
+                {
+                    var registerWindow = new RegisterWindow();
+                    registerWindow.ShowDialog();
+                });
+
+            // 載入所有初始資訊，並在背景自動傳送
+            LoadStaticInfoAndSendToDb();
                 _ = UpdateSensorsAsync();
             }
 
