@@ -21,7 +21,7 @@ namespace collect_all
             }
             
             // 維持不變
-            SoftwareSendService.Initialize(); 
+            DataSendService.InitializeDatabase();   
             var mainViewModel = new MainViewModel();
             var mainWindow = new MainWindow
             {

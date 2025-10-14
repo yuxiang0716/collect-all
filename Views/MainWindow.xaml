@@ -3,12 +3,27 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="系統資訊收集器" Height="700" Width="1000">
     <Grid Margin="10">
-        <TabControl>
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,5,5,0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/> <RowDefinition Height="*"/>    </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0" Margin="0,0,0,10">
+            <TextBlock Text="{Binding DeviceId}" 
+                       HorizontalAlignment="Left" 
+                       VerticalAlignment="Center"
+                       Margin="5,0,0,0"
+                       FontSize="14"
+                       FontWeight="Bold"
+                       Foreground="DodgerBlue"/>
+
+            <StackPanel Orientation="Horizontal" 
+                        HorizontalAlignment="Right" 
+                        VerticalAlignment="Center">
                 <Button Content="註冊" Width="80" Margin="5" Command="{Binding RegisterCommand}"/>
                 <Button Content="登入" Width="80" Margin="5" Command="{Binding LoginCommand}"/>
             </StackPanel>
+        </Grid>
 
+        <TabControl Grid.Row="1">
             <TabItem Header="系統基本資訊">
                 <DataGrid ItemsSource="{Binding SystemInfoItems}" AutoGenerateColumns="False" IsReadOnly="True">
                     <DataGrid.Columns>

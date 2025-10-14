@@ -60,7 +60,7 @@ namespace collect_all.ViewModels
                     
                     if (collectedSoftware.Count > 0)
                     {
-                        _ = SoftwareSendService.SendAsync(collectedSoftware);
+                        _ = DataSendService.SendSoftwareAsync(collectedSoftware);
                         Console.WriteLine("軟體資訊已在背景自動傳送到資料庫。");
                     }
                 }
