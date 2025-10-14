@@ -1,13 +1,12 @@
-// 檔案：SoftwareSend.cs
-// 職責：專門負責將資料上傳到資料庫。這是要交給您朋友修改的檔案。
-
+// 檔案: Services/SoftwareSendService.cs
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
+using collect_all.Models; // <-- 引用 Models
 
-namespace collect_all
+namespace collect_all.Services // <-- 更新命名空間
 {
     #region 資料庫定義 (EF Core)
     public class AppDbContext : DbContext
@@ -25,14 +24,8 @@ namespace collect_all
     }
     #endregion
 
-    /// <summary>
-    /// 負責將資料傳送到資料庫的類別。
-    /// </summary>
-    public class SoftwareSend // <--- 名稱已更改
+    public class SoftwareSendService
     {
-        /// <summary>
-        /// 初始化資料庫。
-        /// </summary>
         public static void Initialize()
         {
             using (var db = new AppDbContext())
@@ -41,17 +34,13 @@ namespace collect_all
             }
         }
 
-        /// <summary>
-        /// 將軟體資訊列表以非同步方式傳送到資料庫。
-        /// </summary>
-        public static async Task SendAsync(List<Software> softwareList) // <--- 名稱已更改
+        public static async Task SendAsync(List<Software> softwareList)
         {
             if (softwareList == null || softwareList.Count == 0)
             {
                 Console.WriteLine("沒有資料可傳送。");
                 return;
             }
-
             try
             {
                 using (var db = new AppDbContext())

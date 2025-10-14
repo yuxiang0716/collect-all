@@ -1,6 +1,6 @@
 using System.Windows;
 
-namespace collect_all
+namespace collect_all.Views
 {
     public partial class LoginWindow : Window
     {
