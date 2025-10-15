@@ -75,5 +75,47 @@ namespace collect_all.Services
                 return true;
             }
         }
+
+        public async Task<(bool Success, string Message, User? LoggedInUser)> LoginUserAsync(string username, string password)
+        {
+            try
+            {
+                using (var conn = new MySqlConnection(ConnString))
+                {
+                    await conn.OpenAsync();
+                    string query = "SELECT Id, Username, PasswordHash, PasswordSalt FROM Users WHERE Username = @Username;";
+                    using (var cmd = new MySqlCommand(query, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@Username", username);
+                        using (var reader = await cmd.ExecuteReaderAsync())
+                        {
+                            if (!reader.HasRows)
+                            {
+                                return (false, "帳號或密碼錯誤！", null);
+                            }
+                            await reader.ReadAsync();
+
+                            var storedHash = (byte[])reader["PasswordHash"];
+                            var storedSalt = (byte[])reader["PasswordSalt"];
+                            if (!PasswordService.VerifyPasswordHash(password, storedHash, storedSalt))
+                            {
+                                return (false, "帳號或密碼錯誤！", null);
+                            }
+                            var user = new User
+                            {
+                                Id = (int)reader["Id"],
+                                Username = (string)reader["Username"]
+                            };
+
+                            return (true, $"歡迎回來, {user.Username}！", user);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                return (false, $"登入失敗：資料庫發生錯誤。 {ex.Message}", null);
+            }
+        }
     }
 }

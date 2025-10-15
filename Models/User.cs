@@ -17,13 +17,13 @@ namespace collect_all.Models
 
         [Required]
         [StringLength(255)]
-        public required string Username { get; set; }
+        public string Username { get; set; } = string.Empty;
 
         [Required]
-        public required byte[] PasswordHash { get; set; }
+        public  byte[] PasswordHash { get; set; } = Array.Empty<byte>();
 
         [Required]
-        public required byte[] PasswordSalt { get; set; }
+        public  byte[] PasswordSalt { get; set; } = Array.Empty<byte>();
 
         public DateTime CreateAt { get; set; } = DateTime.UtcNow;
 
