@@ -19,7 +19,7 @@
                 <DataGridTextColumn Header="發行者" Binding="{Binding Publisher}" Width="*"/>
                 <DataGridTextColumn Header="安裝日期" Binding="{Binding InstallDate}" Width="110"/>
                 <DataGridTextColumn Header="版本" Binding="{Binding DisplayVersion}" Width="110"/>
-                <DataGridTextColumn Header="登錄檔寫入時間" Binding="{Binding LastUpdate}" Width="160"/>
+                <DataGridTextColumn Header="日期" Binding="{Binding LastUpdate}" Width="160"/>
             </DataGrid.Columns>
         </DataGrid>
     </Grid>

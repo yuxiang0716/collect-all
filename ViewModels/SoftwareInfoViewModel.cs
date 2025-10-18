@@ -123,7 +123,8 @@ namespace collect_all.ViewModels
                 RegQueryInfoKey(key.Handle.DangerousGetHandle(), className, ref classSize, IntPtr.Zero, out _, out _, out _, out _, out _, out _, IntPtr.Zero, out FILETIME lastWriteTime);
                 long high = lastWriteTime.dwHighDateTime;
                 long fileTime = (high << 32) | lastWriteTime.dwLowDateTime;
-                return DateTime.FromFileTimeUtc(fileTime).ToLocalTime().ToString("yyyy/MM/dd HH:mm:ss");
+                // *** 修改點：只顯示年月日 ***
+                return DateTime.FromFileTimeUtc(fileTime).ToLocalTime().ToString("yyyy/MM/dd");
             }
             catch { return string.Empty; }
         }

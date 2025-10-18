@@ -1,6 +1,6 @@
-// 檔案: ViewModels/MainViewModel.cs (已加入自動傳送功能)
+// 檔案: ViewModels/MainViewModel.cs (已更新)
 using System;
-using System.Collections.Generic; // <--- 新增
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using System.Windows.Input;
@@ -16,19 +16,16 @@ namespace collect_all.ViewModels
         private readonly SystemInfoService _infoService;
         private bool _isUpdatingSensors = false;
 
-        private string _deviceId = string.Empty;
-        public string DeviceId
+        // --- 屬性修改 ---
+        // 舊的 DeviceId 和 LoginStatusText 已被移除
+        // 新增一個屬性來統一處理左上角的顯示文字
+        private string _userIdentifierText = string.Empty;
+        public string UserIdentifierText
         {
-            get => _deviceId;
-            set { _deviceId = value; OnPropertyChanged(); }
+            get => _userIdentifierText;
+            set { _userIdentifierText = value; OnPropertyChanged(); }
         }
-
-        private string _loginStatusText = string.Empty;
-        public string LoginStatusText
-        {
-            get => _loginStatusText;
-            set { _loginStatusText = value; OnPropertyChanged(); }
-        }
+        // --- 修改結束 ---
 
         public ObservableCollection<BasicInfoData> SystemInfoItems { get; set; }
         public ObservableCollection<BasicInfoData> HardwareItems { get; set; }
@@ -66,23 +63,21 @@ namespace collect_all.ViewModels
             TemperatureItems = new ObservableCollection<BasicInfoData>();
             SmartItems = new ObservableCollection<BasicInfoData>();
 
-            DeviceId = "系統未註冊(登入)";
-
             _isStartupSet = StartupManager.IsStartupSet();
 
             RefreshCommand = new RelayCommand(async _ => await UpdateSensorsAsync());
             ShowSoftwareInfoCommand = new RelayCommand(_ => new SoftwareInfoWindow().Show());
-
             LoginCommand = new RelayCommand(_ => new LoginWindow().ShowDialog());
-
             RegisterCommand = new RelayCommand(_ => new RegisterWindow().ShowDialog());
 
             AuthenticationService.Instance.AuthenticationStateChanged += OnAuthenticationStateChanged;
 
-            UpdateLoginStatusText();
-            _ = FetchDeviceIdAsync();
+            // --- 邏輯修改 ---
+            // 呼叫新的方法來初始化顯示文字
+            UpdateUserIdentifierText();
+            // 舊的 FetchDeviceIdAsync 已被移除
+            // --- 修改結束 ---
 
-            // 載入所有初始資訊，並在背景自動傳送
             LoadStaticInfoAndSendToDb();
             _ = UpdateSensorsAsync();
         }
@@ -91,24 +86,27 @@ namespace collect_all.ViewModels
         {
             System.Windows.Application.Current.Dispatcher.Invoke(() =>
             {
-                UpdateLoginStatusText();
+                // 當登入/登出狀態改變時，更新顯示文字
+                UpdateUserIdentifierText();
             });
         }
 
-        private void UpdateLoginStatusText()
+        // --- 方法更新 ---
+        // 這個新方法取代了舊的 UpdateLoginStatusText
+        private void UpdateUserIdentifierText()
         {
             var currentUser = AuthenticationService.Instance.CurrentUser;
             if (currentUser != null)
             {
-                LoginStatusText = $"已登入: {currentUser.Username}";
+                UserIdentifierText = $"設備編號(帳號): {currentUser.Username}";
             }
             else
             {
-                LoginStatusText = "未登入";
+                UserIdentifierText = "設備編號(帳號): (未登入)";
             }
         }
+        // --- 更新結束 ---
 
-        // *** 修改點：重新命名，並在結尾加入傳送到資料庫的邏輯 ***
         private void LoadStaticInfoAndSendToDb()
         {
             SystemInfoItems.Clear();
@@ -135,13 +133,11 @@ namespace collect_all.ViewModels
             foreach (var d in allDrives)
                 StorageVgaItems.Add(d);
 
-            // *** 新增的邏輯：將剛剛收集到的所有資訊打包，並呼叫服務傳送 ***
             var systemInfoList = new List<SystemInfoEntry>();
             foreach (var item in SystemInfoItems) { systemInfoList.Add(new SystemInfoEntry { Category = "系統基本資訊", Item = item.Name, Value = item.Value }); }
             foreach (var item in HardwareItems) { systemInfoList.Add(new SystemInfoEntry { Category = "核心硬體規格", Item = item.Name, Value = item.Value }); }
             foreach (var item in StorageVgaItems) { systemInfoList.Add(new SystemInfoEntry { Category = "顯示與儲存", Item = item.Name, Value = item.Value }); }
 
-            // 在背景執行緒中非同步傳送，不影響 UI
             _ = DataSendService.SendSystemInfoAsync(systemInfoList);
         }
 
@@ -164,27 +160,7 @@ namespace collect_all.ViewModels
             _isUpdatingSensors = false;
         }
 
-
-        private async Task FetchDeviceIdAsync()
-        {
-            // 步驟 1: 顯示正在載入的訊息
-            DeviceId = "正在從資料庫同步設備編號...";
-
-            // --- 以下是模擬與資料庫溝通的程式碼 ---
-            // --- 資料庫人員請在此處替換為真實的資料庫查詢邏輯 ---
-
-            // 模擬網路或資料庫查詢的延遲
-            await Task.Delay(1500);
-
-            // 模擬從資料庫成功取回的設備編號
-            string idFromDb = $"DEV-YX-{DateTime.Now:yyyyMMdd}";
-
-            // --- 模擬結束 ---
-
-            // 步驟 2: 更新 UI 上的設備編號
-            DeviceId = $"設備編號: {idFromDb}";
-        }
-
+        // --- 移除 FetchDeviceIdAsync 方法 ---
 
         public override void Dispose()
         {

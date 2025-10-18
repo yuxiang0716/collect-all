@@ -2,8 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:collect_all.ViewModels"
-        xmlns:controls="clr-namespace:collect_all.Controls" 
-        Title="註冊" Height="320" Width="400">
+        xmlns:controls="clr-namespace:collect_all.Controls"
+        Title="註冊/註銷" Height="430" Width="400">
 
     <Window.DataContext>
         <vm:RegisterViewModel/>
@@ -14,15 +14,21 @@
             <TextBlock Text="帳號：" Margin="0,5,0,2"/>
             <TextBox Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}" Height="30"/>
 
+            <TextBlock Text="所屬公司：" Margin="0,10,0,2"/>
+            <TextBox Text="{Binding Company, UpdateSourceTrigger=PropertyChanged}" Height="30"/>
+
+            <TextBlock Text="使用者：" Margin="0,10,0,2"/>
+            <TextBox Text="{Binding FullName, UpdateSourceTrigger=PropertyChanged}" Height="30"/>
+
             <TextBlock Text="密碼：" Margin="0,10,0,2"/>
-            <controls:BindablePasswordBox 
-                Password="{Binding Password, UpdateSourceTrigger=PropertyChanged}" 
+            <controls:BindablePasswordBox
+                Password="{Binding Password, UpdateSourceTrigger=PropertyChanged}"
                 Height="30"/>
             <TextBlock Text="確認密碼：" Margin="0,10,0,2"/>
-            <controls:BindablePasswordBox 
-                Password="{Binding ConfirmPassword, UpdateSourceTrigger=PropertyChanged}" 
+            <controls:BindablePasswordBox
+                Password="{Binding ConfirmPassword, UpdateSourceTrigger=PropertyChanged}"
                 Height="30"/>
-            <Button Content="註冊" Height="35" Margin="0,20,0,0" Command="{Binding RegisterCommand}"/>
+            <Button Content="註冊/註銷" Height="35" Margin="0,20,0,0" Command="{Binding RegisterCommand}"/>
         </StackPanel>
     </Grid>
 </Window>

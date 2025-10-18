@@ -22,8 +22,8 @@ namespace collect_all.Views
             m_notifyIcon = new NotifyIcon
             {
                 BalloonTipText = "程式已最小化。點擊圖示以顯示。",
-                BalloonTipTitle = "系統資訊收集器",
-                Text = "系統資訊收集器"
+                BalloonTipTitle = "鴻盛資訊維護服務識別器",
+                Text = "鴻盛資訊維護服務識別器"
             };
             try
             {

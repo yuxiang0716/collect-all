@@ -7,7 +7,7 @@ namespace collect_all.Services // <-- 更新命名空間
 {
     public static class StartupManager
     {
-        private const string AppName = "CollectAll System Info";
+        private const string AppName = "鴻盛資訊維護服務識別器";
         private const string RegistryPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
 
         public static bool IsStartupSet()

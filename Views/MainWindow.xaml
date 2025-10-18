@@ -2,40 +2,37 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:collect_all.ViewModels"
-        Title="系統資訊收集器" Height="700" Width="1000">
+        Title="鴻盛資訊維護服務識別器" Height="400" Width="700">
     <Window.DataContext>
         <vm:MainViewModel/>
     </Window.DataContext>
     <Grid Margin="10">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/> <RowDefinition Height="*"/>    
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
 
         <Grid Grid.Row="0" Margin="0,0,0,10">
-            <TextBlock Text="{Binding DeviceId}" 
-                       HorizontalAlignment="Left" 
+            <TextBlock Text="{Binding UserIdentifierText}"
+                       HorizontalAlignment="Left"
                        VerticalAlignment="Center"
                        Margin="5,0,0,0"
-                       FontSize="14"
+                       FontSize="16"
                        FontWeight="Bold"
                        Foreground="DodgerBlue"/>
 
-            <StackPanel Orientation="Horizontal" 
-                        HorizontalAlignment="Right" 
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Right"
                         VerticalAlignment="Center">
 
-                <TextBlock Text="{Binding LoginStatusText}" 
-                           VerticalAlignment="Center"
-                           FontSize="14" 
-                           Foreground="Gray"/>
-
-                <Button Content="註冊" Width="80" Margin="10,0,5,0" Command="{Binding RegisterCommand}"/>
+                <Button Content="註冊/註銷" Width="80" Margin="10,0,5,0" Command="{Binding RegisterCommand}"/>
                 <Button Content="登入" Width="80" Margin="5,0,5,0" Command="{Binding LoginCommand}"/>
             </StackPanel>
         </Grid>
 
-        <TabControl Grid.Row="1">
+        <TabControl Grid.Row="1" FontSize="15">
             <TabItem Header="系統基本資訊">
                 <DataGrid ItemsSource="{Binding SystemInfoItems}" AutoGenerateColumns="False" IsReadOnly="True">
                     <DataGrid.Columns>
@@ -67,8 +64,8 @@
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="2*"/>
-                        <RowDefinition Height="3*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,5">
                         <Button Content="立即刷新" Width="100" Height="30" Margin="0,5,0,5" Command="{Binding RefreshCommand}"/>
@@ -94,13 +91,18 @@
                               FontSize="16"
                               IsChecked="{Binding IsStartupSet, Mode=TwoWay}" />
                     <TextBlock Margin="20,5,0,0" Foreground="Gray"/>
-                    <Button Content="顯示已安裝軟體" 
-                            Command="{Binding ShowSoftwareInfoCommand}" 
+                    <Button Content="顯示已安裝軟體"
+                            Command="{Binding ShowSoftwareInfoCommand}"
                             Margin="0,20,0,0"
                             Padding="10,5"
                             HorizontalAlignment="Left"/>
                 </StackPanel>
             </TabItem>
         </TabControl>
+
+        <StackPanel Grid.Row="2" HorizontalAlignment="Center" Margin="0,5,0,5">
+            <TextBlock Text="報修專線：(02)8258-8000" FontSize="14" Foreground="Gray" HorizontalAlignment="Center"/>
+            <TextBlock Text="官方網站：www.mis-hs.com" FontSize="14" Foreground="Gray" HorizontalAlignment="Center"/>
+        </StackPanel>
     </Grid>
 </Window>
