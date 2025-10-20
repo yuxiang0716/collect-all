@@ -3,6 +3,7 @@ using System.Windows.Input;
 using System.Windows;
 using System.Threading.Tasks;
 using collect_all.Services;
+using collect_all.Models;
 
 namespace collect_all.ViewModels
 {
@@ -49,20 +50,16 @@ namespace collect_all.ViewModels
 
         private async Task LoginAsync()
         {
-            var result = await _userService.LoginUserAsync(Username, Password);
-            if (result.Success && result.LoggedInUser != null)
+            var user = await _userService.Login(Username, Password);
+            if (user != null)
             {
-                AuthenticationService.Instance.Login(result.LoggedInUser);
-                System.Windows.MessageBox.Show(result.Message, "登入成功", MessageBoxButton.OK, MessageBoxImage.Information);
+                AuthenticationService.Instance.Login(user);
+                System.Windows.MessageBox.Show($"歡迎回來, {user.Account}！", "登入成功", MessageBoxButton.OK, MessageBoxImage.Information);
                 CloseWindow();
             }
             else
             {
-                System.Windows.MessageBox.Show(result.Message, "登入失敗", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-            if (result.Success)
-            {
-                CloseWindow();
+                System.Windows.MessageBox.Show("帳號或密碼錯誤！", "登入失敗", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 

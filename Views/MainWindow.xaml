@@ -27,7 +27,7 @@
                         HorizontalAlignment="Right"
                         VerticalAlignment="Center">
 
-                <Button Content="註冊/註銷" Width="80" Margin="10,0,5,0" Command="{Binding RegisterCommand}"/>
+                <!-- 註冊按鈕已移除 -->
                 <Button Content="登入" Width="80" Margin="5,0,5,0" Command="{Binding LoginCommand}"/>
             </StackPanel>
         </Grid>

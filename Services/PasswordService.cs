@@ -1,30 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using BCrypt.Net;
 
 namespace collect_all.Services
 {
     public static class PasswordService
     {
-        public static void CreatePasswordHash(string password, out byte[] passwordHash, out byte[] salt)
-        {
-            using (var hmac = new System.Security.Cryptography.HMACSHA512())
-            {
-                salt = hmac.Key;
-                passwordHash = hmac.ComputeHash(Encoding.UTF8.GetBytes(password));
-            }
-        }
+        public static string CreatePasswordHash(string password)
+            => BCrypt.Net.BCrypt.HashPassword(password);
 
-        public static bool VerifyPasswordHash(string password, byte[] storedHash, byte[] storedSalt)
-        {
-            using (var hmac = new System.Security.Cryptography.HMACSHA512(storedSalt))
-            {
-                var computedHash = hmac.ComputeHash(Encoding.UTF8.GetBytes(password));
-                return computedHash.SequenceEqual(storedHash);
-            }
-        }
-
+        public static bool VerifyPasswordHash(string password, string storedHash)
+            => !string.IsNullOrEmpty(storedHash) && BCrypt.Net.BCrypt.Verify(password, storedHash);
     }
 }

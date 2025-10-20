@@ -1,11 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations.Schema;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.ComponentModel.DataAnnotations;
-using System.Data;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace collect_all.Models
 {
@@ -13,35 +8,20 @@ namespace collect_all.Models
     {
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
-        public int Id { get; set; }
-
-        [Required]
-        [StringLength(255)]
-        public string Username { get; set; } = string.Empty;
-
-        [Required]
-        [StringLength(255)]
-        public string Company { get; set; } = string.Empty; // 所屬公司
-
-        [Required]
-        [StringLength(255)]
-        public string FullName { get; set; } = string.Empty; // 使用者全名
+        public int UserId { get; set; }
 
         [Required]
         [StringLength(50)]
-        public string Role { get; set; } = string.Empty; // 權限角色
+        public string Account { get; set; } = string.Empty;
 
+        // BCrypt hash 存為文字
         [Required]
-        public  byte[] PasswordHash { get; set; } = Array.Empty<byte>();
+        public string PasswordHash { get; set; } = string.Empty;
 
-        [Required]
-        public  byte[] PasswordSalt { get; set; } = Array.Empty<byte>();
+        // DB schema 定義為 int
+        public int Role { get; set; }
 
-        public DateTime CreateAt { get; set; } = DateTime.UtcNow;
-
-        public DateTime UpdateAt { get; set; }
-
-        
-
+        [StringLength(100)]
+        public string CompanyName { get; set; } = string.Empty;
     }
 }

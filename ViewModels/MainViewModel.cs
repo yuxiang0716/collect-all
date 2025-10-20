@@ -1,4 +1,4 @@
-// 檔案: ViewModels/MainViewModel.cs (已更新)
+// 檔案: ViewModels/MainViewModel.cs (修正 _infoService 拼字)
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -16,16 +16,12 @@ namespace collect_all.ViewModels
         private readonly SystemInfoService _infoService;
         private bool _isUpdatingSensors = false;
 
-        // --- 屬性修改 ---
-        // 舊的 DeviceId 和 LoginStatusText 已被移除
-        // 新增一個屬性來統一處理左上角的顯示文字
         private string _userIdentifierText = string.Empty;
         public string UserIdentifierText
         {
             get => _userIdentifierText;
             set { _userIdentifierText = value; OnPropertyChanged(); }
         }
-        // --- 修改結束 ---
 
         public ObservableCollection<BasicInfoData> SystemInfoItems { get; set; }
         public ObservableCollection<BasicInfoData> HardwareItems { get; set; }
@@ -52,7 +48,6 @@ namespace collect_all.ViewModels
         public ICommand RefreshCommand { get; }
         public ICommand ShowSoftwareInfoCommand { get; }
         public ICommand LoginCommand { get; }
-        public ICommand RegisterCommand { get; }
 
         public MainViewModel()
         {
@@ -68,15 +63,10 @@ namespace collect_all.ViewModels
             RefreshCommand = new RelayCommand(async _ => await UpdateSensorsAsync());
             ShowSoftwareInfoCommand = new RelayCommand(_ => new SoftwareInfoWindow().Show());
             LoginCommand = new RelayCommand(_ => new LoginWindow().ShowDialog());
-            RegisterCommand = new RelayCommand(_ => new RegisterWindow().ShowDialog());
 
             AuthenticationService.Instance.AuthenticationStateChanged += OnAuthenticationStateChanged;
 
-            // --- 邏輯修改 ---
-            // 呼叫新的方法來初始化顯示文字
             UpdateUserIdentifierText();
-            // 舊的 FetchDeviceIdAsync 已被移除
-            // --- 修改結束 ---
 
             LoadStaticInfoAndSendToDb();
             _ = UpdateSensorsAsync();
@@ -86,26 +76,22 @@ namespace collect_all.ViewModels
         {
             System.Windows.Application.Current.Dispatcher.Invoke(() =>
             {
-                // 當登入/登出狀態改變時，更新顯示文字
                 UpdateUserIdentifierText();
             });
         }
 
-        // --- 方法更新 ---
-        // 這個新方法取代了舊的 UpdateLoginStatusText
         private void UpdateUserIdentifierText()
         {
             var currentUser = AuthenticationService.Instance.CurrentUser;
             if (currentUser != null)
             {
-                UserIdentifierText = $"設備編號(帳號): {currentUser.Username}";
+                UserIdentifierText = $"設備編號(帳號): {currentUser.Account}";
             }
             else
             {
                 UserIdentifierText = "設備編號(帳號): (未登入)";
             }
         }
-        // --- 更新結束 ---
 
         private void LoadStaticInfoAndSendToDb()
         {
@@ -159,8 +145,6 @@ namespace collect_all.ViewModels
 
             _isUpdatingSensors = false;
         }
-
-        // --- 移除 FetchDeviceIdAsync 方法 ---
 
         public override void Dispose()
         {

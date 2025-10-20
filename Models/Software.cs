@@ -1,13 +1,13 @@
-// 檔案：Software.cs (修正後版本)
+// 檔案：Models/Software.cs (放入 collect_all.Models，供 ViewModel 使用)
 
 using System;
-using System.ComponentModel.DataAnnotations; // <--- 1. 新增這一行
+using System.ComponentModel.DataAnnotations;
 
-namespace collect_all
+namespace collect_all.Models
 {
     public class Software
     {
-        [Key] // <--- 2. 加上這個 [Key] 屬性，告訴資料庫 Number 是主鍵
+        [Key]
         public int Number { get; set; }
         
         public string DisplayName { get; set; } = string.Empty;
