@@ -89,7 +89,41 @@ namespace collect_all.Views
         // ... (這裡是 OnClose, OnStateChanged, OnIsVisibleChanged 方法)
         #endregion
 
+        private void DataGrid_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            // 尋找外層的 ScrollViewer
+            var scrollViewer = FindParent<ScrollViewer>(sender as DependencyObject);
 
+            if (scrollViewer != null)
+            {
+                // 手動控制 ScrollViewer 滾動
+                if (e.Delta < 0) // 滾輪向下
+                {
+                    scrollViewer.ScrollToVerticalOffset(scrollViewer.VerticalOffset + 40); // 40 是滾動幅度
+                }
+                else // 滾輪向上
+                {
+                    scrollViewer.ScrollToVerticalOffset(scrollViewer.VerticalOffset - 40);
+                }
+
+                // 標記事件已處理，防止 DataGrid 再次處理它
+                e.Handled = true;
+            }
+        }
+
+        private static T? FindParent<T>(DependencyObject? child) where T : DependencyObject
+        {
+            if (child == null) return null;
+
+            DependencyObject parentObject = VisualTreeHelper.GetParent(child);
+            if (parentObject == null) return null;
+
+            T parent = parentObject as T;
+            if (parent != null)
+                return parent;
+            else
+                return FindParent<T>(parentObject);
+        }
 
     }
 }

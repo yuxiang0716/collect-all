@@ -3,7 +3,6 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:collect_all.ViewModels"
         Title="鴻盛資訊維護服務識別器" Height="400" Width="700">
-    <!-- DataContext is set in App.xaml.cs to avoid duplicate viewmodels -->
     <Grid Margin="10">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -25,7 +24,6 @@
                         HorizontalAlignment="Right"
                         VerticalAlignment="Center">
 
-                <!-- 註冊按鈕已移除 -->
                 <Button Content="登入" Width="80" Margin="5,0,5,0" Command="{Binding LoginCommand}"/>
             </StackPanel>
         </Grid>
@@ -73,8 +71,8 @@
                             
                             <DataGrid ItemsSource="{Binding UsageItems}" AutoGenerateColumns="False" IsReadOnly="True"
                                       HeadersVisibility="Column"
-                                      CanUserAddRows="False" CanUserDeleteRows="False" SelectionMode="Single">
-                                <DataGrid.Columns>
+                                      CanUserAddRows="False" CanUserDeleteRows="False" SelectionMode="Single"
+                                      PreviewMouseWheel="DataGrid_PreviewMouseWheel"> <DataGrid.Columns>
                                     <DataGridTextColumn Header="設備" Binding="{Binding Name}" Width="350"/>
                                     <DataGridTextColumn Header="使用率" Binding="{Binding Value}" Width="*"/>
                                 </DataGrid.Columns>
@@ -82,8 +80,8 @@
 
                             <DataGrid ItemsSource="{Binding TemperatureItems}" AutoGenerateColumns="False" IsReadOnly="True" 
                                       Margin="0,5,0,0"
-                                      CanUserAddRows="False" CanUserDeleteRows="False" SelectionMode="Single">
-                                <DataGrid.Columns>
+                                      CanUserAddRows="False" CanUserDeleteRows="False" SelectionMode="Single"
+                                      PreviewMouseWheel="DataGrid_PreviewMouseWheel"> <DataGrid.Columns>
                                     <DataGridTextColumn Header="設備/感應器" Binding="{Binding Name}" Width="350"/>
                                     <DataGridTextColumn Header="溫度" Binding="{Binding Value}" Width="*"/>
                                 </DataGrid.Columns>
@@ -91,8 +89,8 @@
 
                             <DataGrid ItemsSource="{Binding SmartItems}" AutoGenerateColumns="False" IsReadOnly="True" 
                                       Margin="0,5,0,0"
-                                      CanUserAddRows="False" CanUserDeleteRows="False" SelectionMode="Single">
-                                <DataGrid.Columns>
+                                      CanUserAddRows="False" CanUserDeleteRows="False" SelectionMode="Single"
+                                      PreviewMouseWheel="DataGrid_PreviewMouseWheel"> <DataGrid.Columns>
                                     <DataGridTextColumn Header="硬碟名稱" Binding="{Binding Name}" Width="250"/>
                                     <DataGridTextColumn Header="S.M.A.R.T. 參數" Binding="{Binding Value}" Width="*"/>
                                 </DataGrid.Columns>
