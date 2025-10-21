@@ -23,7 +23,8 @@ namespace collect_all.Services
                 IsCpuEnabled = true,
                 IsGpuEnabled = true,
                 IsMotherboardEnabled = true,
-                IsStorageEnabled = true
+                IsStorageEnabled = true,
+                IsMemoryEnabled = true
             };
             _computer.Open();
             _visitor = new LibreUpdateVisitor();
@@ -44,6 +45,70 @@ namespace collect_all.Services
             return list;
         }
 
+
+public ObservableCollection<BasicInfoData> GetUsage()
+        {
+            _computer.Accept(_visitor); // 確保數據刷新
+
+            var list = new ObservableCollection<BasicInfoData>
+            {
+                new BasicInfoData("CPU 使用率", GetCpuUsage()),
+                new BasicInfoData("記憶體使用率", GetMemoryUsage()),
+                new BasicInfoData("顯示卡使用率", GetGpuUsage()),
+                new BasicInfoData("硬碟使用率", GetHddUsage())
+            };
+            return list;
+        }
+
+        #region Private Usage Getters
+
+        private string GetCpuUsage()
+        {
+            var cpu = _computer.Hardware.FirstOrDefault(h => h.HardwareType == HardwareType.Cpu);
+            var sensor = cpu?.Sensors.FirstOrDefault(s => s.SensorType == SensorType.Load && s.Name.Contains("CPU Total"));
+            return sensor?.Value != null ? $"{sensor.Value.Value:F1} %" : "不支援";
+        }
+
+        private string GetMemoryUsage()
+        {
+            var mem = _computer.Hardware.FirstOrDefault(h => h.HardwareType == HardwareType.Memory);
+            var sensor = mem?.Sensors.FirstOrDefault(s => s.SensorType == SensorType.Load && s.Name.Contains("Memory")); // 
+            return sensor?.Value != null ? $"{sensor.Value.Value:F1} %" : "不支援";
+        }
+
+        private string GetGpuUsage()
+        {
+            var gpu = _computer.Hardware.FirstOrDefault(h => h.HardwareType == HardwareType.GpuNvidia || h.HardwareType == HardwareType.GpuAmd || h.HardwareType == HardwareType.GpuIntel);
+            var sensor = gpu?.Sensors.FirstOrDefault(s => s.SensorType == SensorType.Load && s.Name.Contains("Core")); // "GPU Core"
+            if (sensor == null) // 備用方案
+            {
+                sensor = gpu?.Sensors.FirstOrDefault(s => s.SensorType == SensorType.Load);
+            }
+            return sensor?.Value != null ? $"{sensor.Value.Value:F1} %" : "不支援";
+        }
+
+        private string GetHddUsage()
+        {
+            // 尋找所有儲存裝置中 "Total Activity" 最高的
+            float maxUsage = 0;
+            bool supported = false;
+            var hdds = _computer.Hardware.Where(h => h.HardwareType == HardwareType.Storage);
+            foreach (var hdd in hdds)
+            {
+                var sensor = hdd.Sensors.FirstOrDefault(s => s.SensorType == SensorType.Load && s.Name.Contains("Activity")); // "Total Activity"
+                if (sensor?.Value != null)
+                {
+                    supported = true;
+                    if (sensor.Value.Value > maxUsage)
+                    {
+                        maxUsage = sensor.Value.Value;
+                    }
+                }
+            }
+            return supported ? $"{maxUsage:F1} %" : "不支援";
+        }
+        #endregion
+        
         #region Private Temperature Getters with Fallbacks
 
         private string GetCpuTemperature()

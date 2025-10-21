@@ -9,6 +9,7 @@ using collect_all.Commands;
 using collect_all.Models;
 using collect_all.Services;
 using collect_all.Views;
+using System.Threading;
 
 namespace collect_all.ViewModels
 {
@@ -18,6 +19,7 @@ namespace collect_all.ViewModels
         private readonly SystemMacLoginService _macLoginService;
         private bool _isUpdatingSensors = false;
 
+        private readonly CancellationTokenSource _cts = new CancellationTokenSource();
         private string _userIdentifierText = "正在初始化..."; // 初始文字
         public string UserIdentifierText
         {
@@ -30,7 +32,7 @@ namespace collect_all.ViewModels
         public ObservableCollection<BasicInfoData> StorageVgaItems { get; set; }
         public ObservableCollection<BasicInfoData> TemperatureItems { get; set; }
         public ObservableCollection<BasicInfoData> SmartItems { get; set; }
-
+        public ObservableCollection<BasicInfoData> UsageItems { get; set; }
         private bool _isStartupSet;
         public bool IsStartupSet
         {
@@ -61,6 +63,7 @@ namespace collect_all.ViewModels
             StorageVgaItems = new ObservableCollection<BasicInfoData>();
             TemperatureItems = new ObservableCollection<BasicInfoData>();
             SmartItems = new ObservableCollection<BasicInfoData>();
+            UsageItems = new ObservableCollection<BasicInfoData>();
 
             _isStartupSet = StartupManager.IsStartupSet();
 
@@ -85,6 +88,7 @@ namespace collect_all.ViewModels
                 LoadStaticInfoAndSendToDb();
                 _ = UpdateSensorsAsync();
             });
+            _ = StartPeriodicUpdatesAsync(_cts.Token);
         }
 
         private async Task RequestMacLoginAsync(bool onStartup = false)
@@ -205,11 +209,22 @@ namespace collect_all.ViewModels
             if (_isUpdatingSensors) return;
             _isUpdatingSensors = true;
 
-            var temps = await Task.Run(() => _infoService.GetTemperatures());
-            var smarts = await Task.Run(() => _infoService.GetSmartHealth());
+            // 平行抓取溫度、SMART 和使用率
+            var tempsTask = Task.Run(() => _infoService.GetTemperatures());
+            var smartsTask = Task.Run(() => _infoService.GetSmartHealth());
+            var usagesTask = Task.Run(() => _infoService.GetUsage()); // <-- 新增
+
+            await Task.WhenAll(tempsTask, smartsTask, usagesTask); // <-- 等待全部完成
+
+            var temps = await tempsTask;
+            var smarts = await smartsTask;
+            var usages = await usagesTask; // <-- 取得結果
 
             System.Windows.Application.Current.Dispatcher.Invoke(() =>
             {
+                UsageItems.Clear(); // <-- 新增
+                foreach (var item in usages) UsageItems.Add(item); // <-- 新增
+
                 TemperatureItems.Clear();
                 foreach (var item in temps) TemperatureItems.Add(item);
                 SmartItems.Clear();
@@ -219,11 +234,46 @@ namespace collect_all.ViewModels
             _isUpdatingSensors = false;
         }
 
+
+
+        private async Task StartPeriodicUpdatesAsync(CancellationToken token)
+        {
+            try
+            {
+                while (!token.IsCancellationRequested)
+                {
+                    // 等待 10 分鐘
+                    await Task.Delay(TimeSpan.FromMinutes(10), token);
+
+                    if (token.IsCancellationRequested) break;
+
+                    // 執行刷新 (不需要在 Dispatcher.Invoke 內，UpdateSensorsAsync 內部會處理)
+                    await UpdateSensorsAsync();
+                }
+            }
+            catch (TaskCanceledException)
+            {
+                // 程式關閉時會觸發，屬正常行為
+            }
+            catch (Exception ex)
+            {
+                // 紀錄其他可能的錯誤
+                Console.WriteLine($"Periodic update error: {ex.Message}");
+            }
+        }
+        
+
+
         public override void Dispose()
         {
+            _cts.Cancel(); // <-- 新增：通知計時器停止
+            _cts.Dispose(); // <-- 新增：釋放資源
+
             AuthenticationService.Instance.AuthenticationStateChanged -= OnAuthenticationStateChanged;
             _infoService.Dispose();
             base.Dispose();
         }
+
     }
 }
+

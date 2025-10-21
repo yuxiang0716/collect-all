@@ -4,6 +4,10 @@ using System.Windows;
 using System.Windows.Forms; // Tray Icon
 using System.Drawing;      // Icon
 using collect_all.ViewModels; // 引用 ViewModels
+using System.Windows.Input; // <-- 新增
+using System.Windows.Controls;
+using System.Windows.Media; // <-- 新增 (為了 VisualTreeHelper)
+using System.Windows.Controls.Primitives; // <-- 新增 (為了 TabPanel)
 
 namespace collect_all.Views
 {
@@ -80,5 +84,12 @@ namespace collect_all.Views
             if (m_notifyIcon != null) m_notifyIcon.Visible = !IsVisible;
         }
         #endregion
+
+        #region Tray Events (保留所有與托盤相關的事件)
+        // ... (這裡是 OnClose, OnStateChanged, OnIsVisibleChanged 方法)
+        #endregion
+
+
+
     }
 }

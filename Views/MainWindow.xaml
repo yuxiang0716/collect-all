@@ -30,7 +30,7 @@
             </StackPanel>
         </Grid>
 
-        <TabControl Grid.Row="1" FontSize="15">
+        <TabControl Grid.Row="1" FontSize="15" >
             <TabItem Header="系統基本資訊">
                 <DataGrid ItemsSource="{Binding SystemInfoItems}" AutoGenerateColumns="False" IsReadOnly="True">
                     <DataGrid.Columns>
@@ -58,28 +58,48 @@
                 </DataGrid>
             </TabItem>
 
-            <TabItem Header="即時監控與診斷">
+<TabItem Header="即時監控與診斷">
                 <Grid>
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,5">
+                        <RowDefinition Height="Auto"/> <RowDefinition Height="*"/>    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,5">
                         <Button Content="立即刷新" Width="100" Height="30" Margin="0,5,0,5" Command="{Binding RefreshCommand}"/>
                     </StackPanel>
-                    <DataGrid Grid.Row="1" ItemsSource="{Binding TemperatureItems}" AutoGenerateColumns="False" IsReadOnly="True">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="設備/感應器" Binding="{Binding Name}" Width="350"/>
-                            <DataGridTextColumn Header="溫度" Binding="{Binding Value}" Width="*"/>
-                        </DataGrid.Columns>
-                    </DataGrid>
-                    <DataGrid Grid.Row="2" ItemsSource="{Binding SmartItems}" AutoGenerateColumns="False" IsReadOnly="True">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="硬碟名稱" Binding="{Binding Name}" Width="250"/>
-                            <DataGridTextColumn Header="S.M.A.R.T. 參數" Binding="{Binding Value}" Width="*"/>
-                        </DataGrid.Columns>
-                    </DataGrid>
+
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                        
+                        <StackPanel>
+                            
+                            <DataGrid ItemsSource="{Binding UsageItems}" AutoGenerateColumns="False" IsReadOnly="True"
+                                      HeadersVisibility="Column"
+                                      CanUserAddRows="False" CanUserDeleteRows="False" SelectionMode="Single">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="設備" Binding="{Binding Name}" Width="350"/>
+                                    <DataGridTextColumn Header="使用率" Binding="{Binding Value}" Width="*"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+
+                            <DataGrid ItemsSource="{Binding TemperatureItems}" AutoGenerateColumns="False" IsReadOnly="True" 
+                                      Margin="0,5,0,0"
+                                      CanUserAddRows="False" CanUserDeleteRows="False" SelectionMode="Single">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="設備/感應器" Binding="{Binding Name}" Width="350"/>
+                                    <DataGridTextColumn Header="溫度" Binding="{Binding Value}" Width="*"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+
+                            <DataGrid ItemsSource="{Binding SmartItems}" AutoGenerateColumns="False" IsReadOnly="True" 
+                                      Margin="0,5,0,0"
+                                      CanUserAddRows="False" CanUserDeleteRows="False" SelectionMode="Single">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="硬碟名稱" Binding="{Binding Name}" Width="250"/>
+                                    <DataGridTextColumn Header="S.M.A.R.T. 參數" Binding="{Binding Value}" Width="*"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                            
+                        </StackPanel>
+                    </ScrollViewer>
                 </Grid>
             </TabItem>
 
