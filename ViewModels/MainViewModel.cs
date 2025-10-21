@@ -1,9 +1,10 @@
-// 檔案: ViewModels/MainViewModel.cs (修正 _infoService 拼字)
+// 檔案: ViewModels/MainViewModel.cs
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using System.Windows.Input;
+using System.Windows;
 using collect_all.Commands;
 using collect_all.Models;
 using collect_all.Services;
@@ -14,9 +15,10 @@ namespace collect_all.ViewModels
     public class MainViewModel : ViewModelBase, IDisposable
     {
         private readonly SystemInfoService _infoService;
+        private readonly SystemMacLoginService _macLoginService;
         private bool _isUpdatingSensors = false;
 
-        private string _userIdentifierText = string.Empty;
+        private string _userIdentifierText = "正在初始化..."; // 初始文字
         public string UserIdentifierText
         {
             get => _userIdentifierText;
@@ -52,6 +54,8 @@ namespace collect_all.ViewModels
         public MainViewModel()
         {
             _infoService = new SystemInfoService();
+            _macLoginService = new SystemMacLoginService();
+
             SystemInfoItems = new ObservableCollection<BasicInfoData>();
             HardwareItems = new ObservableCollection<BasicInfoData>();
             StorageVgaItems = new ObservableCollection<BasicInfoData>();
@@ -62,39 +66,104 @@ namespace collect_all.ViewModels
 
             RefreshCommand = new RelayCommand(async _ => await UpdateSensorsAsync());
             ShowSoftwareInfoCommand = new RelayCommand(_ => new SoftwareInfoWindow().Show());
-            LoginCommand = new RelayCommand(_ => new LoginWindow().ShowDialog());
+            LoginCommand = new RelayCommand(async _ => await RequestMacLoginAsync());
 
             AuthenticationService.Instance.AuthenticationStateChanged += OnAuthenticationStateChanged;
 
-            UpdateUserIdentifierText();
-
-            LoadStaticInfoAndSendToDb();
-            _ = UpdateSensorsAsync();
+            // 在背景執行啟動流程
+            Task.Run(async () => await StartupFlowAsync());
         }
 
-        private void OnAuthenticationStateChanged(object? sender, EventArgs e)
+        private async Task StartupFlowAsync()
         {
+            // 1. 執行登入流程
+            await RequestMacLoginAsync(onStartup: true);
+
+            // 2. 登入流程結束後，無論結果如何，都載入並顯示資料
             System.Windows.Application.Current.Dispatcher.Invoke(() =>
             {
-                UpdateUserIdentifierText();
+                LoadStaticInfoAndSendToDb();
+                _ = UpdateSensorsAsync();
             });
         }
 
-        private void UpdateUserIdentifierText()
+        private async Task RequestMacLoginAsync(bool onStartup = false)
+        {
+            string mac = _macLoginService.GetPrimaryMac();
+            if (string.IsNullOrEmpty(mac))
+            {
+                var user = UIAuthService.ShowLoginDialog();
+                await UpdateUserIdentifierText();
+                return;
+            }
+
+            var (found, macRecord) = await _macLoginService.CheckMacInTableAsync(mac);
+            if (found && macRecord != null)
+            {
+                var user = UIAuthService.ShowLoginDialog(macRecord.User, isUsernameReadOnly: true);
+                await UpdateUserIdentifierText();
+                return;
+            }
+
+            // MAC not in table: require user login to assign.
+            var loggedInUser = UIAuthService.ShowLoginDialog();
+            if (loggedInUser == null)
+            {
+                // User cancelled the login dialog.
+                await UpdateUserIdentifierText();
+                return;
+            }
+
+            // User logged in, now try to assign MAC.
+            var assignResult = await _macLoginService.AssignMacIfAvailableAsync(loggedInUser.Account, mac);
+            if (assignResult.Success)
+            {
+                // Assignment successful, update UI text.
+                await UpdateUserIdentifierText();
+                return;
+            }
+
+            // Assignment failed (e.g., no empty slot).
+            System.Windows.Application.Current.Dispatcher.Invoke(() =>
+            {
+                System.Windows.MessageBox.Show(assignResult.Message ?? "指派失敗", "錯誤", MessageBoxButton.OK, MessageBoxImage.Error);
+            });
+
+            // Log the user out and update the UI to reflect the "not logged in" state.
+            AuthenticationService.Instance.Logout();
+            await UpdateUserIdentifierText();
+        }
+
+
+        private void OnAuthenticationStateChanged(object? sender, EventArgs e)
+        {
+            System.Windows.Application.Current.Dispatcher.Invoke(async () =>
+            {
+                await UpdateUserIdentifierText();
+                // 登入狀態改變後，重新觸發一次資料載入與傳送
+                LoadStaticInfoAndSendToDb();
+            });
+        }
+
+        private async Task UpdateUserIdentifierText()
         {
             var currentUser = AuthenticationService.Instance.CurrentUser;
             if (currentUser != null)
             {
-                UserIdentifierText = $"設備編號(帳號): {currentUser.Account}";
+                string mac = _macLoginService.GetPrimaryMac();
+                var (_, macRecord) = await _macLoginService.CheckMacInTableAsync(mac);
+                string deviceId = macRecord?.DeviceId ?? "N/A";
+                UserIdentifierText = $"裝置編號: {deviceId} / 帳號: {currentUser.Account}";
             }
             else
             {
-                UserIdentifierText = "設備編號(帳號): (未登入)";
+                UserIdentifierText = "未登入，資料未上傳";
             }
         }
 
         private void LoadStaticInfoAndSendToDb()
         {
+            // --- 靜態資訊收集 ---
             SystemInfoItems.Clear();
             HardwareItems.Clear();
             StorageVgaItems.Clear();
@@ -119,12 +188,16 @@ namespace collect_all.ViewModels
             foreach (var d in allDrives)
                 StorageVgaItems.Add(d);
 
-            var systemInfoList = new List<SystemInfoEntry>();
-            foreach (var item in SystemInfoItems) { systemInfoList.Add(new SystemInfoEntry { Category = "系統基本資訊", Item = item.Name, Value = item.Value }); }
-            foreach (var item in HardwareItems) { systemInfoList.Add(new SystemInfoEntry { Category = "核心硬體規格", Item = item.Name, Value = item.Value }); }
-            foreach (var item in StorageVgaItems) { systemInfoList.Add(new SystemInfoEntry { Category = "顯示與儲存", Item = item.Name, Value = item.Value }); }
+            // --- 資料傳送邏輯 ---
+            if (AuthenticationService.Instance.CurrentUser != null)
+            {
+                var systemInfoList = new List<SystemInfoEntry>();
+                foreach (var item in SystemInfoItems) { systemInfoList.Add(new SystemInfoEntry { Category = "系統基本資訊", Item = item.Name, Value = item.Value }); }
+                foreach (var item in HardwareItems) { systemInfoList.Add(new SystemInfoEntry { Category = "核心硬體規格", Item = item.Name, Value = item.Value }); }
+                foreach (var item in StorageVgaItems) { systemInfoList.Add(new SystemInfoEntry { Category = "顯示與儲存", Item = item.Name, Value = item.Value }); }
 
-            _ = DataSendService.SendSystemInfoAsync(systemInfoList);
+                _ = DataSendService.SendSystemInfoAsync(systemInfoList);
+            }
         }
 
         private async Task UpdateSensorsAsync()

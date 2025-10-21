@@ -1,6 +1,4 @@
 // 檔案: ViewModels/SoftwareInfoViewModel.cs
-// 職責: 擔任 SoftwareInfoWindow 的大腦，處理軟體資訊的收集、顯示和傳送。
-
 using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
@@ -31,14 +29,17 @@ namespace collect_all.ViewModels
             set { _softwareCount = value; OnPropertyChanged(); }
         }
 
+        private List<Software>? _pendingSoftware;
+
         // --- 建構函式 ---
         public SoftwareInfoViewModel()
         {
             _installedSoftware = new ObservableCollection<Software>();
             _softwareCount = "正在載入軟體資訊...";
+            AuthenticationService.Instance.AuthenticationStateChanged += OnAuthenticationStateChanged;
             LoadAndSendSoftwareInfo();
         }
-        
+
         // --- 私有方法 ---
         private void LoadAndSendSoftwareInfo()
         {
@@ -47,7 +48,7 @@ namespace collect_all.ViewModels
                 try
                 {
                     List<Software> collectedSoftware = GetSoftwareFromRegistry();
-                    
+
                     System.Windows.Application.Current.Dispatcher.Invoke(() =>
                     {
                         InstalledSoftware.Clear();
@@ -57,11 +58,21 @@ namespace collect_all.ViewModels
                         }
                         SoftwareCount = $"共找到 {InstalledSoftware.Count} 個已安裝的軟體";
                     });
-                    
+
                     if (collectedSoftware.Count > 0)
                     {
-                        _ = DataSendService.SendSoftwareAsync(collectedSoftware);
-                        Console.WriteLine("軟體資訊已在背景自動傳送到資料庫。");
+                        // Only send if user is logged in
+                        if (AuthenticationService.Instance.CurrentUser != null)
+                        {
+                            _ = DataSendService.SendSoftwareAsync(collectedSoftware);
+                            Console.WriteLine("軟體資訊已在背景自動傳送到資料庫。");
+                        }
+                        else
+                        {
+                            // queue for later send after login
+                            _pendingSoftware = collectedSoftware;
+                            Console.WriteLine("使用者未登入，已暫存軟體資訊，待登入後傳送。");
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -73,6 +84,19 @@ namespace collect_all.ViewModels
                     });
                 }
             });
+        }
+
+        private void OnAuthenticationStateChanged(object? sender, EventArgs e)
+        {
+            // when user logs in, if we have pending software, send it
+            var user = AuthenticationService.Instance.CurrentUser;
+            if (user != null && _pendingSoftware != null && _pendingSoftware.Count > 0)
+            {
+                var toSend = _pendingSoftware;
+                _pendingSoftware = null;
+                _ = DataSendService.SendSoftwareAsync(toSend);
+                Console.WriteLine("登入後背景傳送暫存軟體資訊。");
+            }
         }
 
         #region Software Collection Logic (這部分是從服務搬過來的，也可以建立一個 SoftwareService)

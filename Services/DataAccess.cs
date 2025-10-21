@@ -7,7 +7,7 @@ namespace collect_all.Services
     // 這個類別專門用來定義我們的資料庫結構
     public class AppDbContext : DbContext
     {
-        // 定義 DbSet（保留或新增所有你需要的 model）
+        // 定義 DbSet（保留或新增所有你需要的 model ）
         public DbSet<AlertInfo> AlertInfos { get; set; }
         public DbSet<Device> Devices { get; set; }
         public DbSet<DiskInfo> DiskInfos { get; set; }
@@ -16,6 +16,9 @@ namespace collect_all.Services
         public DbSet<PowerLog> PowerLogs { get; set; }
         public DbSet<SoftwareInfo> SoftwareInfos { get; set; }
         public DbSet<User> UserAccounts { get; set; }
+
+        // 加入 MacAddressTable
+        public DbSet<MacAddressTable> MacAddressTables { get; set; }
 
         private readonly string _connString;
 
@@ -44,6 +47,9 @@ namespace collect_all.Services
             modelBuilder.Entity<PowerLog>().ToTable("powerlogs");
             modelBuilder.Entity<SoftwareInfo>().ToTable("softwareinfos");
             modelBuilder.Entity<User>().ToTable("useraccounts");
+
+            // 加入 MacAddressTable 的 table name 對應 (表名為 macaddresstable)
+            modelBuilder.Entity<MacAddressTable>().ToTable("macaddresstable");
 
             // 若需要對應欄位名稱（例如 model 屬性名與 DB 欄位名不同），在這裡加入：
             // modelBuilder.Entity<User>().Property(u => u.UserId).HasColumnName("UserId");

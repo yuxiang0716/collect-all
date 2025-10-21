@@ -1,4 +1,5 @@
-﻿using collect_all.Commands;
+﻿// 檔案: ViewModels/LoginViewModel.cs
+using collect_all.Commands;
 using System.Windows.Input;
 using System.Windows;
 using System.Threading.Tasks;
@@ -7,11 +8,12 @@ using collect_all.Models;
 
 namespace collect_all.ViewModels
 {
-    public class LoginViewModel: ViewModelBase
+    public class LoginViewModel : ViewModelBase
     {
         private readonly UserService _userService;
         private string _username = string.Empty;
         private string _password = string.Empty;
+        private bool _isUsernameReadOnly = false;
 
         public string Username
         {
@@ -35,6 +37,16 @@ namespace collect_all.ViewModels
             }
         }
 
+        public bool IsUsernameReadOnly
+        {
+            get => _isUsernameReadOnly;
+            set
+            {
+                _isUsernameReadOnly = value;
+                OnPropertyChanged();
+            }
+        }
+
         public ICommand LoginCommand { get; }
 
         public LoginViewModel()
@@ -54,7 +66,6 @@ namespace collect_all.ViewModels
             if (user != null)
             {
                 AuthenticationService.Instance.Login(user);
-                System.Windows.MessageBox.Show($"歡迎回來, {user.Account}！", "登入成功", MessageBoxButton.OK, MessageBoxImage.Information);
                 CloseWindow();
             }
             else

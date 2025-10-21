@@ -3,9 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:collect_all.ViewModels"
         Title="鴻盛資訊維護服務識別器" Height="400" Width="700">
-    <Window.DataContext>
-        <vm:MainViewModel/>
-    </Window.DataContext>
+    <!-- DataContext is set in App.xaml.cs to avoid duplicate viewmodels -->
     <Grid Margin="10">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
