@@ -53,6 +53,8 @@ namespace collect_all.ViewModels
         public ICommand ShowSoftwareInfoCommand { get; }
         public ICommand LoginCommand { get; }
 
+        public ICommand ShowBootHistoryCommand { get; }
+
         public MainViewModel()
         {
             _infoService = new SystemInfoService();
@@ -70,6 +72,8 @@ namespace collect_all.ViewModels
             RefreshCommand = new RelayCommand(async _ => await UpdateSensorsAsync());
             ShowSoftwareInfoCommand = new RelayCommand(_ => new SoftwareInfoWindow().Show());
             LoginCommand = new RelayCommand(async _ => await RequestMacLoginAsync());
+
+            ShowBootHistoryCommand = new RelayCommand(_ => new Views.BootHistoryWindow().Show());
 
             AuthenticationService.Instance.AuthenticationStateChanged += OnAuthenticationStateChanged;
 

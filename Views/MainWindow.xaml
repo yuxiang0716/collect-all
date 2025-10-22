@@ -112,6 +112,12 @@
                             Margin="0,20,0,0"
                             Padding="10,5"
                             HorizontalAlignment="Left"/>
+
+                    <Button Content="7日內開關機紀錄"
+                            Command="{Binding ShowBootHistoryCommand}"
+                            Margin="0,15,0,0"
+                            Padding="10,5"
+                            HorizontalAlignment="Left"/>
                 </StackPanel>
             </TabItem>
         </TabControl>
