@@ -52,7 +52,7 @@
             </TabItem>
 
             <TabItem Header="顯示與儲存">
-                <DataGrid ItemsSource="{Binding StorageVgaItems}" AutoGenerateColumns="False" IsReadOnly="True">
+                 <DataGrid ItemsSource="{Binding StorageVgaItems}" AutoGenerateColumns="False" IsReadOnly="True">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="項目" Binding="{Binding Name}" Width="250"/>
                         <DataGridTextColumn Header="數值" Binding="{Binding Value}" Width="*"/>
@@ -63,20 +63,22 @@
             <TabItem Header="即時監控與診斷">
                 <Grid>
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/> <RowDefinition Height="*"/>    </Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/> 
+                        <RowDefinition Height="*"/>    
+                    </Grid.RowDefinitions>
 
                     <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,5">
                         <Button Content="立即刷新" Width="100" Height="30" Margin="0,5,0,5" Command="{Binding RefreshCommand}"/>
                     </StackPanel>
 
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                        
                         <StackPanel>
                             
                             <DataGrid ItemsSource="{Binding UsageItems}" AutoGenerateColumns="False" IsReadOnly="True"
                                       HeadersVisibility="Column"
                                       CanUserAddRows="False" CanUserDeleteRows="False" SelectionMode="Single"
-                                      PreviewMouseWheel="DataGrid_PreviewMouseWheel"> <DataGrid.Columns>
+                                      PreviewMouseWheel="DataGrid_PreviewMouseWheel"> 
+                                <DataGrid.Columns>
                                     <DataGridTextColumn Header="設備" Binding="{Binding Name}" Width="350"/>
                                     <DataGridTextColumn Header="使用率" Binding="{Binding Value}" Width="*"/>
                                 </DataGrid.Columns>
@@ -85,7 +87,8 @@
                             <DataGrid ItemsSource="{Binding TemperatureItems}" AutoGenerateColumns="False" IsReadOnly="True" 
                                       Margin="0,5,0,0"
                                       CanUserAddRows="False" CanUserDeleteRows="False" SelectionMode="Single"
-                                      PreviewMouseWheel="DataGrid_PreviewMouseWheel"> <DataGrid.Columns>
+                                      PreviewMouseWheel="DataGrid_PreviewMouseWheel"> 
+                                <DataGrid.Columns>
                                     <DataGridTextColumn Header="設備/感應器" Binding="{Binding Name}" Width="350"/>
                                     <DataGridTextColumn Header="溫度" Binding="{Binding Value}" Width="*"/>
                                 </DataGrid.Columns>
@@ -94,12 +97,25 @@
                             <DataGrid ItemsSource="{Binding SmartItems}" AutoGenerateColumns="False" IsReadOnly="True" 
                                       Margin="0,5,0,0"
                                       CanUserAddRows="False" CanUserDeleteRows="False" SelectionMode="Single"
-                                      PreviewMouseWheel="DataGrid_PreviewMouseWheel"> <DataGrid.Columns>
+                                      PreviewMouseWheel="DataGrid_PreviewMouseWheel"> 
+                                <DataGrid.Columns>
                                     <DataGridTextColumn Header="硬碟名稱" Binding="{Binding Name}" Width="250"/>
                                     <DataGridTextColumn Header="S.M.A.R.T. 參數" Binding="{Binding Value}" Width="*"/>
                                 </DataGrid.Columns>
                             </DataGrid>
                             
+                            <DataGrid ItemsSource="{Binding NetworkTrafficItems}" AutoGenerateColumns="False" IsReadOnly="True" 
+                                      Margin="0,5,0,0"
+                                      HeadersVisibility="Column"
+                                      CanUserAddRows="False" CanUserDeleteRows="False" SelectionMode="Single"
+                                      PreviewMouseWheel="DataGrid_PreviewMouseWheel">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="網路介面" Binding="{Binding InterfaceName}" Width="350"/>
+                                    <DataGridTextColumn Header="下載速度" Binding="{Binding DownloadSpeed}" Width="*"/>
+                                    <DataGridTextColumn Header="上傳速度" Binding="{Binding UploadSpeed}" Width="*"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>
@@ -107,10 +123,22 @@
 
             <TabItem Header="設定">
                 <StackPanel Margin="15">
+                    
                     <CheckBox Content="開機時自動啟動本程式"
                               FontSize="16"
                               IsChecked="{Binding IsStartupSet, Mode=TwoWay}" />
                     <TextBlock Margin="20,5,0,0" Foreground="Gray"/>
+
+                    <TextBlock Text="即時監控更新頻率 (秒)：" Margin="0,15,0,2" FontSize="14" FontWeight="Bold"/>
+            
+                    <TextBlock Text="網路流量更新 (預設 1 秒，建議 1-5 秒)" Margin="5,0,0,2" />
+                    <TextBox Text="{Binding NetworkUpdateIntervalSeconds}" 
+                             Width="100" HorizontalAlignment="Left" />
+
+                    <TextBlock Text="硬體感應器更新 (預設 600 秒，建議 > 60 秒)" Margin="5,10,0,2" />
+                    <TextBox Text="{Binding SensorUpdateIntervalSeconds}" 
+                             Width="100" HorizontalAlignment="Left" />
+
                     
                     <Button Content="📊 即時日誌檢視器"
                             Command="{Binding ShowLogViewerCommand}"
@@ -132,13 +160,13 @@
                             Margin="0,15,0,0"
                             Padding="10,5"
                             HorizontalAlignment="Left"/>
+                            
                 </StackPanel>
             </TabItem>
-        </TabControl>
-
-        <StackPanel Grid.Row="2" HorizontalAlignment="Center" Margin="0,5,0,5">
+            
+        </TabControl> <StackPanel Grid.Row="2" HorizontalAlignment="Center" Margin="0,5,0,5">
             <TextBlock Text="報修專線：(02)8258-8000" FontSize="14" Foreground="Gray" HorizontalAlignment="Center"/>
             <TextBlock Text="官方網站：www.mis-hs.com" FontSize="14" Foreground="Gray" HorizontalAlignment="Center"/>
         </StackPanel>
-    </Grid>
-</Window>
+        
+    </Grid> </Window>
