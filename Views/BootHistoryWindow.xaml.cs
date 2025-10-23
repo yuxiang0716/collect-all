@@ -23,7 +23,7 @@ namespace collect_all.Views
         private List<BootEvent> GetBootEvents()
         {
             var events = new List<BootEvent>();
-            DateTime startTime = DateTime.Now.AddDays(-7); 
+            DateTime startTime = DateTime.Now.AddDays(-30);  // 改為 30 天
 
             string queryString = 
                 $"*[System[(" +

@@ -1,10 +1,7 @@
 // 檔案: ViewModels/SoftwareInfoViewModel.cs
-using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Runtime.InteropServices;
-using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using collect_all.Models;
@@ -14,7 +11,8 @@ namespace collect_all.ViewModels
 {
     public class SoftwareInfoViewModel : ViewModelBase
     {
-        // --- 綁定到 UI 的屬性 ---
+        private readonly SoftwareCollectionService _softwareService;
+        
         private ObservableCollection<Software> _installedSoftware;
         public ObservableCollection<Software> InstalledSoftware
         {
@@ -29,129 +27,50 @@ namespace collect_all.ViewModels
             set { _softwareCount = value; OnPropertyChanged(); }
         }
 
-        private List<Software>? _pendingSoftware;
-
-        // --- 建構函式 ---
         public SoftwareInfoViewModel()
         {
+            _softwareService = new SoftwareCollectionService();
             _installedSoftware = new ObservableCollection<Software>();
             _softwareCount = "正在載入軟體資訊...";
-            AuthenticationService.Instance.AuthenticationStateChanged += OnAuthenticationStateChanged;
-            LoadAndSendSoftwareInfo();
+            
+            LoadSoftwareInfo();
         }
 
-        // --- 私有方法 ---
-        private void LoadAndSendSoftwareInfo()
+        private void LoadSoftwareInfo()
         {
             Task.Run(() =>
             {
                 try
                 {
-                    List<Software> collectedSoftware = GetSoftwareFromRegistry();
+                    LogService.Log("[SoftwareInfoViewModel] 開始載入軟體清單用於顯示");
+                    List<Software> collectedSoftware = _softwareService.GetSoftwareFromRegistry();
 
                     System.Windows.Application.Current.Dispatcher.Invoke(() =>
                     {
                         InstalledSoftware.Clear();
-                        foreach (var software in collectedSoftware)
+                        
+                        // 重新編號
+                        for (int i = 0; i < collectedSoftware.Count; i++)
                         {
-                            InstalledSoftware.Add(software);
+                            collectedSoftware[i].Number = i + 1;
+                            InstalledSoftware.Add(collectedSoftware[i]);
                         }
+                        
                         SoftwareCount = $"共找到 {InstalledSoftware.Count} 個已安裝的軟體";
+                        LogService.Log($"[SoftwareInfoViewModel] 軟體清單載入完成，共 {InstalledSoftware.Count} 個");
                     });
-
-                    if (collectedSoftware.Count > 0)
-                    {
-                        // Only send if user is logged in
-                        if (AuthenticationService.Instance.CurrentUser != null)
-                        {
-                            _ = DataSendService.SendSoftwareAsync(collectedSoftware);
-                            Console.WriteLine("軟體資訊已在背景自動傳送到資料庫。");
-                        }
-                        else
-                        {
-                            // queue for later send after login
-                            _pendingSoftware = collectedSoftware;
-                            Console.WriteLine("使用者未登入，已暫存軟體資訊，待登入後傳送。");
-                        }
-                    }
                 }
                 catch (Exception ex)
                 {
+                    LogService.Log($"[SoftwareInfoViewModel] ✗ 錯誤: {ex.Message}");
+                    
                     System.Windows.Application.Current.Dispatcher.Invoke(() =>
                     {
                         SoftwareCount = $"載入錯誤: {ex.Message}";
-                        System.Windows.MessageBox.Show($"自動處理軟體資訊時發生錯誤：{ex.Message}", "錯誤", MessageBoxButton.OK, MessageBoxImage.Error);
+                        System.Windows.MessageBox.Show($"載入軟體資訊時發生錯誤：{ex.Message}", "錯誤", MessageBoxButton.OK, MessageBoxImage.Error);
                     });
                 }
             });
         }
-
-        private void OnAuthenticationStateChanged(object? sender, EventArgs e)
-        {
-            // when user logs in, if we have pending software, send it
-            var user = AuthenticationService.Instance.CurrentUser;
-            if (user != null && _pendingSoftware != null && _pendingSoftware.Count > 0)
-            {
-                var toSend = _pendingSoftware;
-                _pendingSoftware = null;
-                _ = DataSendService.SendSoftwareAsync(toSend);
-                Console.WriteLine("登入後背景傳送暫存軟體資訊。");
-            }
-        }
-
-        #region Software Collection Logic (這部分是從服務搬過來的，也可以建立一個 SoftwareService)
-        [DllImport("advapi32.dll", CharSet = CharSet.Unicode, EntryPoint = "RegQueryInfoKeyW", SetLastError = true)]
-        internal static extern int RegQueryInfoKey(IntPtr hKey, StringBuilder lpClass, ref uint lpcchClass, IntPtr lpReserved, out uint lpcSubKeys, out uint lpcbMaxSubKeyLen, out uint lpcbMaxClassLen, out uint lpcValues, out uint lpcbMaxValueNameLen, out uint lpcbMaxValueLen, IntPtr lpSecurityDescriptor, out FILETIME lpftLastWriteTime);
-        [StructLayout(LayoutKind.Sequential)]
-        public struct FILETIME { public uint dwLowDateTime; public uint dwHighDateTime; }
-
-        private List<Software> GetSoftwareFromRegistry()
-        {
-            var softwareList = new List<Software>();
-            using (var key64 = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall")) { ProcessRegistryKey(key64, softwareList); }
-            if (Environment.Is64BitOperatingSystem) { using (var key32 = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall")) { ProcessRegistryKey(key32, softwareList); } }
-            var distinctList = new List<Software>();
-            var seen = new HashSet<string>();
-            foreach (var software in softwareList)
-            {
-                string identifier = $"{software.DisplayName}_{software.DisplayVersion}";
-                if (!string.IsNullOrEmpty(software.DisplayName) && !seen.Contains(identifier)) { seen.Add(identifier); distinctList.Add(software); }
-            }
-            for (int i = 0; i < distinctList.Count; i++) { distinctList[i].Number = i + 1; }
-            return distinctList;
-        }
-        private static void ProcessRegistryKey(RegistryKey? key, List<Software> softwareList)
-        {
-            if (key == null) return;
-            foreach (string subkeyName in key.GetSubKeyNames())
-            {
-                using (RegistryKey? subkey = key.OpenSubKey(subkeyName))
-                {
-                    if (subkey != null)
-                    {
-                        var displayName = subkey.GetValue("DisplayName") as string;
-                        if (!string.IsNullOrEmpty(displayName))
-                        {
-                            softwareList.Add(new Software { DisplayName = displayName, Publisher = subkey.GetValue("Publisher") as string ?? string.Empty, InstallDate = subkey.GetValue("InstallDate") as string ?? string.Empty, DisplayVersion = subkey.GetValue("DisplayVersion") as string ?? string.Empty, LastUpdate = GetRegistryKeyLastWriteTime(subkey) });
-                        }
-                    }
-                }
-            }
-        }
-        private static string GetRegistryKeyLastWriteTime(RegistryKey key)
-        {
-            try
-            {
-                uint classSize = 256;
-                StringBuilder className = new StringBuilder((int)classSize);
-                RegQueryInfoKey(key.Handle.DangerousGetHandle(), className, ref classSize, IntPtr.Zero, out _, out _, out _, out _, out _, out _, IntPtr.Zero, out FILETIME lastWriteTime);
-                long high = lastWriteTime.dwHighDateTime;
-                long fileTime = (high << 32) | lastWriteTime.dwLowDateTime;
-                // *** 修改點：只顯示年月日 ***
-                return DateTime.FromFileTimeUtc(fileTime).ToLocalTime().ToString("yyyy/MM/dd");
-            }
-            catch { return string.Empty; }
-        }
-        #endregion
     }
 }

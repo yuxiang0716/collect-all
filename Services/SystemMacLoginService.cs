@@ -63,5 +63,17 @@ namespace collect_all.Services
 
             return (false, "«ü¬£¥¢±Ñ");
         }
+
+        public async Task<string?> GetDeviceIdAsync()
+        {
+            string mac = GetPrimaryMac();
+            if (string.IsNullOrEmpty(mac))
+            {
+                return null;
+            }
+
+            var (_, macRecord) = await CheckMacInTableAsync(mac);
+            return macRecord?.DeviceId;
+        }
     }
 }

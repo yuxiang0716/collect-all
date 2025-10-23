@@ -51,6 +51,10 @@ namespace collect_all.Services
             // 加入 MacAddressTable 的 table name 對應 (表名為 macaddresstable)
             modelBuilder.Entity<MacAddressTable>().ToTable("macaddresstable");
 
+            // 設定 SoftwareInfo 的複合主鍵 (DeviceNo + SoftwareName + Version)
+            modelBuilder.Entity<SoftwareInfo>()
+                .HasKey(s => new { s.DeviceNo, s.SoftwareName, s.Version });
+
             // 若需要對應欄位名稱（例如 model 屬性名與 DB 欄位名不同），在這裡加入：
             // modelBuilder.Entity<User>().Property(u => u.UserId).HasColumnName("UserId");
             // modelBuilder.Entity<User>().Property(u => u.CompanyName).HasColumnName("CompanyName");

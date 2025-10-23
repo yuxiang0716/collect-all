@@ -24,7 +24,11 @@
                         HorizontalAlignment="Right"
                         VerticalAlignment="Center">
 
-                <Button Content="登入" Width="80" Margin="5,0,5,0" Command="{Binding LoginCommand}"/>
+                <Button Content="{Binding LoginButtonText}" 
+                        Width="80" 
+                        Margin="5,0,5,0" 
+                        Command="{Binding LoginCommand}"
+                        IsEnabled="{Binding IsLoginButtonEnabled}"/>
             </StackPanel>
         </Grid>
 
@@ -56,7 +60,7 @@
                 </DataGrid>
             </TabItem>
 
-<TabItem Header="即時監控與診斷">
+            <TabItem Header="即時監控與診斷">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/> <RowDefinition Height="*"/>    </Grid.RowDefinitions>
@@ -107,13 +111,23 @@
                               FontSize="16"
                               IsChecked="{Binding IsStartupSet, Mode=TwoWay}" />
                     <TextBlock Margin="20,5,0,0" Foreground="Gray"/>
+                    
+                    <Button Content="📊 即時日誌檢視器"
+                            Command="{Binding ShowLogViewerCommand}"
+                            Margin="0,20,0,0"
+                            Padding="10,5"
+                            HorizontalAlignment="Left"
+                            Background="Green"
+                            Foreground="White"
+                            FontWeight="Bold"/>
+                    
                     <Button Content="顯示已安裝軟體"
                             Command="{Binding ShowSoftwareInfoCommand}"
-                            Margin="0,20,0,0"
+                            Margin="0,15,0,0"
                             Padding="10,5"
                             HorizontalAlignment="Left"/>
 
-                    <Button Content="7日內開關機紀錄"
+                    <Button Content="30日內開關機紀錄"
                             Command="{Binding ShowBootHistoryCommand}"
                             Margin="0,15,0,0"
                             Padding="10,5"

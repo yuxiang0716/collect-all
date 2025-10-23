@@ -17,10 +17,48 @@ namespace collect_all.ViewModels
     {
         private readonly SystemInfoService _infoService;
         private readonly SystemMacLoginService _macLoginService;
+        private readonly SoftwareCollectionService _softwareService;
+        private readonly PowerLogService _powerLogService;
+        private readonly HardwareInfoService _hardwareInfoService;
+        private readonly GraphicsCardInfoService _graphicsCardInfoService;
         private bool _isUpdatingSensors = false;
+        private bool _isLoggingIn = false;  // 防止重複登入
 
         private readonly CancellationTokenSource _cts = new CancellationTokenSource();
         private string _userIdentifierText = "正在初始化..."; // 初始文字
+        
+        // 暫存軟體清單
+        private List<Software>? _collectedSoftware = null;
+        private bool _softwareUploaded = false;  // 追蹤軟體是否已上傳
+        
+        // 暫存開關機記錄
+        private List<PowerLog>? _collectedPowerLogs = null;
+        private bool _powerLogsUploaded = false;  // 追蹤開關機記錄是否已上傳
+
+        // 硬體資訊上傳標記
+        private bool _hardwareInfoUploaded = false;
+        
+        // 暫存硬體資訊（避免重複收集）
+        private HardwareInfo? _collectedHardwareInfo = null;
+        
+        // 顯卡資訊上傳標記和暫存
+        private bool _graphicsCardsUploaded = false;
+        private List<string>? _collectedGraphicsCards = null;
+
+        private string _loginButtonText = "登入";
+        public string LoginButtonText
+        {
+            get => _loginButtonText;
+            set { _loginButtonText = value; OnPropertyChanged(); }
+        }
+
+        private bool _isLoginButtonEnabled = true;
+        public bool IsLoginButtonEnabled
+        {
+            get => _isLoginButtonEnabled;
+            set { _isLoginButtonEnabled = value; OnPropertyChanged(); }
+        }
+
         public string UserIdentifierText
         {
             get => _userIdentifierText;
@@ -52,13 +90,17 @@ namespace collect_all.ViewModels
         public ICommand RefreshCommand { get; }
         public ICommand ShowSoftwareInfoCommand { get; }
         public ICommand LoginCommand { get; }
-
         public ICommand ShowBootHistoryCommand { get; }
+        public ICommand ShowLogViewerCommand { get; }
 
         public MainViewModel()
         {
             _infoService = new SystemInfoService();
             _macLoginService = new SystemMacLoginService();
+            _softwareService = new SoftwareCollectionService();
+            _powerLogService = new PowerLogService();
+            _hardwareInfoService = new HardwareInfoService();
+            _graphicsCardInfoService = new GraphicsCardInfoService();
 
             SystemInfoItems = new ObservableCollection<BasicInfoData>();
             HardwareItems = new ObservableCollection<BasicInfoData>();
@@ -72,10 +114,13 @@ namespace collect_all.ViewModels
             RefreshCommand = new RelayCommand(async _ => await UpdateSensorsAsync());
             ShowSoftwareInfoCommand = new RelayCommand(_ => new SoftwareInfoWindow().Show());
             LoginCommand = new RelayCommand(async _ => await RequestMacLoginAsync());
-
             ShowBootHistoryCommand = new RelayCommand(_ => new Views.BootHistoryWindow().Show());
+            ShowLogViewerCommand = new RelayCommand(_ => new LogViewerWindow().Show());
 
             AuthenticationService.Instance.AuthenticationStateChanged += OnAuthenticationStateChanged;
+
+            // 監聽系統關機事件
+            Microsoft.Win32.SystemEvents.SessionEnding += OnSystemShutdown;
 
             // 在背景執行啟動流程
             Task.Run(async () => await StartupFlowAsync());
@@ -83,74 +128,494 @@ namespace collect_all.ViewModels
 
         private async Task StartupFlowAsync()
         {
-            // 1. 執行登入流程
+            // 1a. 在背景先收集軟體清單（不阻塞登入）
+            Task.Run(() =>
+            {
+                try
+                {
+                    _collectedSoftware = _softwareService.GetSoftwareFromRegistry();
+                    LogService.Log($"[MainViewModel] 軟體清單收集完成，共 {_collectedSoftware.Count} 個軟體");
+                }
+                catch (Exception ex)
+                {
+                    LogService.Log($"[MainViewModel] 收集軟體清單時發生錯誤：{ex.Message}");
+                }
+            });
+
+            // 1b. 在背景收集開關機記錄（不阻塞登入）
+            Task.Run(() =>
+            {
+                try
+                {
+                    _collectedPowerLogs = _powerLogService.GetPowerLogs(30);  // 收集最近 30 天
+                    LogService.Log($"[MainViewModel] 開關機記錄收集完成，共 {_collectedPowerLogs.Count} 筆");
+                }
+                catch (Exception ex)
+                {
+                    LogService.Log($"[MainViewModel] 收集開關機記錄時發生錯誤：{ex.Message}");
+                }
+            });
+
+            // 2. 執行登入流程
             await RequestMacLoginAsync(onStartup: true);
 
-            // 2. 登入流程結束後，無論結果如何，都載入並顯示資料
+            // 3. 登入流程結束後，載入系統資訊並顯示資料
             System.Windows.Application.Current.Dispatcher.Invoke(() =>
             {
                 LoadStaticInfoAndSendToDb();
                 _ = UpdateSensorsAsync();
             });
+            
             _ = StartPeriodicUpdatesAsync(_cts.Token);
         }
 
         private async Task RequestMacLoginAsync(bool onStartup = false)
         {
-            string mac = _macLoginService.GetPrimaryMac();
-            if (string.IsNullOrEmpty(mac))
+            // 檢查是否已經登入
+            if (AuthenticationService.Instance.CurrentUser != null)
             {
-                var user = UIAuthService.ShowLoginDialog();
-                await UpdateUserIdentifierText();
+                LogService.Log("[MainViewModel] 已經登入，無需再次登入");
+                System.Windows.MessageBox.Show("您已經登入了！", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            
+            // 防止重複登入
+            if (_isLoggingIn)
+            {
+                LogService.Log("[MainViewModel] 正在登入中，跳過重複的登入請求");
                 return;
             }
 
-            var (found, macRecord) = await _macLoginService.CheckMacInTableAsync(mac);
-            if (found && macRecord != null)
+            _isLoggingIn = true;
+            LoginButtonText = "登入中...";  // 更新按鈕文字
+            IsLoginButtonEnabled = false;  // 禁用按鈕
+            
+            try
             {
-                var user = UIAuthService.ShowLoginDialog(macRecord.User, isUsernameReadOnly: true);
+                string mac = _macLoginService.GetPrimaryMac();
+                if (string.IsNullOrEmpty(mac))
+                {
+                    var user = UIAuthService.ShowLoginDialog();
+                    await UpdateUserIdentifierText();
+                    
+                    // 登入後嘗試上傳軟體資訊
+                    await TrySendSoftwareInfoAsync();
+                    await TrySendPowerLogsAsync();  // 同時上傳開關機記錄
+                    await TrySendHardwareInfoAsync();  // 同時上傳硬體資訊
+                    await TrySendGraphicsCardsAsync();  // 同時上傳顯卡資訊
+
+                    // 登入成功後隱藏登入按鈕
+                    if (AuthenticationService.Instance.CurrentUser != null)
+                    {
+                        LoginButtonText = "已登入";
+                        IsLoginButtonEnabled = false;
+                    }
+                    return;
+                }
+
+                var (found, macRecord) = await _macLoginService.CheckMacInTableAsync(mac);
+                if (found && macRecord != null)
+                {
+                    var user = UIAuthService.ShowLoginDialog(macRecord.User, isUsernameReadOnly: true);
+                    await UpdateUserIdentifierText();
+                    
+                    // 登入後嘗試上傳軟體資訊
+                    await TrySendSoftwareInfoAsync();
+                    await TrySendPowerLogsAsync();  // 同時上傳開關機記錄
+                    await TrySendHardwareInfoAsync();  // 同時上傳硬體資訊
+                    await TrySendGraphicsCardsAsync();  // 同時上傳顯卡資訊
+
+                    // 登入成功後隱藏登入按鈕
+                    if (AuthenticationService.Instance.CurrentUser != null)
+                    {
+                        LoginButtonText = "已登入";
+                        IsLoginButtonEnabled = false;
+                    }
+                    return;
+                }
+
+                // MAC not in table: require user login to assign.
+                var loggedInUser = UIAuthService.ShowLoginDialog();
+                if (loggedInUser == null)
+                {
+                    // User cancelled the login dialog.
+                    await UpdateUserIdentifierText();
+                    return;
+                }
+
+                // User logged in, now try to assign MAC.
+                var assignResult = await _macLoginService.AssignMacIfAvailableAsync(loggedInUser.Account, mac);
+                if (assignResult.Success)
+                {
+                    // Assignment successful, update UI text.
+                    await UpdateUserIdentifierText();
+                    
+                    // 登入後嘗試上傳軟體資訊
+                    await TrySendSoftwareInfoAsync();
+                    await TrySendPowerLogsAsync();  // 同時上傳開關機記錄
+                    await TrySendHardwareInfoAsync();  // 同時上傳硬體資訊
+                    await TrySendGraphicsCardsAsync();  // 同時上傳顯卡資訊
+
+                    // 登入成功後隱藏登入按鈕
+                    if (AuthenticationService.Instance.CurrentUser != null)
+                    {
+                        LoginButtonText = "已登入";
+                        IsLoginButtonEnabled = false;
+                    }
+                    return;
+                }
+
+                // Assignment failed (e.g., no empty slot).
+                System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                {
+                    System.Windows.MessageBox.Show(assignResult.Message ?? "指派失敗", "錯誤", MessageBoxButton.OK, MessageBoxImage.Error);
+                });
+
+                // Log the user out and update the UI to reflect the "not logged in" state.
+                AuthenticationService.Instance.Logout();
                 await UpdateUserIdentifierText();
-                return;
             }
-
-            // MAC not in table: require user login to assign.
-            var loggedInUser = UIAuthService.ShowLoginDialog();
-            if (loggedInUser == null)
+            finally
             {
-                // User cancelled the login dialog.
-                await UpdateUserIdentifierText();
-                return;
+                _isLoggingIn = false;  // 無論成功或失敗都要解除鎖定
+                
+                // 如果未登入，恢復按鈕狀態
+                if (AuthenticationService.Instance.CurrentUser == null)
+                {
+                    LoginButtonText = "登入";
+                    IsLoginButtonEnabled = true;
+                }
             }
-
-            // User logged in, now try to assign MAC.
-            var assignResult = await _macLoginService.AssignMacIfAvailableAsync(loggedInUser.Account, mac);
-            if (assignResult.Success)
-            {
-                // Assignment successful, update UI text.
-                await UpdateUserIdentifierText();
-                return;
-            }
-
-            // Assignment failed (e.g., no empty slot).
-            System.Windows.Application.Current.Dispatcher.Invoke(() =>
-            {
-                System.Windows.MessageBox.Show(assignResult.Message ?? "指派失敗", "錯誤", MessageBoxButton.OK, MessageBoxImage.Error);
-            });
-
-            // Log the user out and update the UI to reflect the "not logged in" state.
-            AuthenticationService.Instance.Logout();
-            await UpdateUserIdentifierText();
         }
 
-
-        private void OnAuthenticationStateChanged(object? sender, EventArgs e)
+        private async Task TrySendSoftwareInfoAsync()
         {
-            System.Windows.Application.Current.Dispatcher.Invoke(async () =>
+            // 檢查是否已經上傳過
+            if (_softwareUploaded)
             {
-                await UpdateUserIdentifierText();
-                // 登入狀態改變後，重新觸發一次資料載入與傳送
-                LoadStaticInfoAndSendToDb();
-            });
+                LogService.Log("[MainViewModel] 軟體資訊已經上傳過，跳過重複上傳");
+                return;
+            }
+            
+            // 檢查使用者是否已登入
+            var currentUser = AuthenticationService.Instance.CurrentUser;
+            if (currentUser == null)
+            {
+                LogService.Log("[MainViewModel] 使用者未登入，無法上傳軟體資訊");
+                return;
+            }
+
+            // 檢查軟體清單是否已收集
+            if (_collectedSoftware == null)
+            {
+                LogService.Log("[MainViewModel] 軟體清單尚未收集完成，等待中...");
+                
+                // 等待軟體收集完成（最多等待 30 秒）
+                int waitCount = 0;
+                while (_collectedSoftware == null && waitCount < 60)
+                {
+                    await Task.Delay(500);
+                    waitCount++;
+                }
+                
+                if (_collectedSoftware == null)
+                {
+                    LogService.Log("[MainViewModel] ✗ 等待軟體清單收集逾時");
+                    return;
+                }
+            }
+
+            // 上傳軟體資訊
+            LogService.Log($"[MainViewModel] 準備上傳 {_collectedSoftware.Count} 筆軟體資訊");
+            await DataSendService.SendSoftwareAsync(_collectedSoftware);
+            
+            // 標記為已上傳
+            _softwareUploaded = true;
+            LogService.Log("[MainViewModel] ✓ 軟體資訊上傳流程完成，已標記為已上傳");
+        }
+
+        private async Task TrySendPowerLogsAsync()
+        {
+            // 檢查是否已經上傳過（每次啟動只上傳一次）
+            if (_powerLogsUploaded)
+            {
+                LogService.Log("[MainViewModel] 開關機記錄已經上傳過，跳過重複上傳");
+                return;
+            }
+            
+            // 檢查使用者是否已登入
+            var currentUser = AuthenticationService.Instance.CurrentUser;
+            if (currentUser == null)
+            {
+                LogService.Log("[MainViewModel] 使用者未登入，無法上傳開關機記錄");
+                return;
+            }
+
+            // 取得裝置編號
+            string mac = _macLoginService.GetPrimaryMac();
+            var (found, macRecord) = await _macLoginService.CheckMacInTableAsync(mac);
+
+            if (!found || macRecord == null || string.IsNullOrEmpty(macRecord.DeviceId))
+            {
+                LogService.Log("[MainViewModel] 無法取得裝置編號，無法上傳開關機記錄");
+                return;
+            }
+
+            string deviceNo = macRecord.DeviceId;
+
+            // 檢查開關機記錄是否已收集
+            if (_collectedPowerLogs == null)
+            {
+                LogService.Log("[MainViewModel] 開關機記錄尚未收集完成，等待中...");
+                
+                // 等待收集完成（最多等待 10 秒）
+                int waitCount = 0;
+                while (_collectedPowerLogs == null && waitCount < 20)
+                {
+                    await Task.Delay(500);
+                    waitCount++;
+                }
+                
+                if (_collectedPowerLogs == null)
+                {
+                    LogService.Log("[MainViewModel] ✗ 等待開關機記錄收集逾時");
+                    return;
+                }
+            }
+
+            // 上傳開關機記錄（服務會自動過濾已存在的記錄）
+            LogService.Log($"[MainViewModel] 準備上傳 {_collectedPowerLogs.Count} 筆開關機記錄（自動過濾重複）");
+            await _powerLogService.UploadPowerLogsAsync(deviceNo, _collectedPowerLogs);
+            
+            // 標記為已上傳
+            _powerLogsUploaded = true;
+            LogService.Log("[MainViewModel] ✓ 開關機記錄上傳流程完成，已標記為已上傳");
+        }
+
+        private async Task TrySendHardwareInfoAsync()
+        {
+            // 檢查是否已經上傳過（每次啟動只上傳一次）
+            if (_hardwareInfoUploaded)
+            {
+                LogService.Log("[MainViewModel] 硬體資訊已經上傳過，跳過重複上傳");
+                return;
+            }
+
+            // 檢查使用者是否已登入
+            var currentUser = AuthenticationService.Instance.CurrentUser;
+            if (currentUser == null)
+            {
+                LogService.Log("[MainViewModel] 使用者未登入，無法上傳硬體資訊");
+                return;
+            }
+
+            // 檢查硬體資訊是否已收集
+            if (_collectedHardwareInfo == null)
+            {
+                LogService.Log("[MainViewModel] 硬體資訊尚未收集，等待中...");
+                
+                // 等待收集完成（最多等待 5 秒）
+                int waitCount = 0;
+                while (_collectedHardwareInfo == null && waitCount < 10)
+                {
+                    await Task.Delay(500);
+                    waitCount++;
+                }
+                
+                if (_collectedHardwareInfo == null)
+                {
+                    LogService.Log("[MainViewModel] ✗ 等待硬體資訊收集逾時");
+                    return;
+                }
+            }
+
+            // 取得裝置編號
+            string mac = _macLoginService.GetPrimaryMac();
+            var (found, macRecord) = await _macLoginService.CheckMacInTableAsync(mac);
+
+            if (!found || macRecord == null || string.IsNullOrEmpty(macRecord.DeviceId))
+            {
+                LogService.Log("[MainViewModel] 無法取得裝置編號，無法上傳硬體資訊");
+                return;
+            }
+
+            string deviceNo = macRecord.DeviceId;
+            
+            // 設定裝置編號
+            _collectedHardwareInfo.DeviceNo = deviceNo;
+
+            // 上傳或更新硬體資訊（使用暫存的資料）
+            LogService.Log($"[MainViewModel] 準備上傳/更新硬體資訊（裝置編號: {deviceNo}）");
+            await _hardwareInfoService.UploadOrUpdateHardwareInfoAsync(deviceNo, _collectedHardwareInfo);
+
+            // 標記為已上傳
+            _hardwareInfoUploaded = true;
+            LogService.Log("[MainViewModel] ✓ 硬體資訊上傳流程完成，已標記為已上傳");
+        }
+
+        private async Task TrySendGraphicsCardsAsync()
+        {
+            // 檢查是否已經上傳過（每次啟動只上傳一次）
+            if (_graphicsCardsUploaded)
+            {
+                LogService.Log("[MainViewModel] 顯卡資訊已經上傳過，跳過重複上傳");
+                return;
+            }
+
+            // 檢查使用者是否已登入
+            var currentUser = AuthenticationService.Instance.CurrentUser;
+            if (currentUser == null)
+            {
+                LogService.Log("[MainViewModel] 使用者未登入，無法上傳顯卡資訊");
+                return;
+            }
+
+            // 檢查顯卡資訊是否已收集
+            if (_collectedGraphicsCards == null)
+            {
+                LogService.Log("[MainViewModel] 顯卡資訊尚未收集，等待中...");
+                
+                // 等待收集完成（最多等待 5 秒）
+                int waitCount = 0;
+                while (_collectedGraphicsCards == null && waitCount < 10)
+                {
+                    await Task.Delay(500);
+                    waitCount++;
+                }
+                
+                if (_collectedGraphicsCards == null)
+                {
+                    LogService.Log("[MainViewModel] ✗ 等待顯卡資訊收集逾時");
+                    return;
+                }
+            }
+
+            // 取得裝置編號
+            string mac = _macLoginService.GetPrimaryMac();
+            var (found, macRecord) = await _macLoginService.CheckMacInTableAsync(mac);
+
+            if (!found || macRecord == null || string.IsNullOrEmpty(macRecord.DeviceId))
+            {
+                LogService.Log("[MainViewModel] 無法取得裝置編號，無法上傳顯卡資訊");
+                return;
+            }
+
+            string deviceNo = macRecord.DeviceId;
+            
+            // 上傳顯卡資訊
+            LogService.Log($"[MainViewModel] 準備上傳 {_collectedGraphicsCards.Count} 筆顯卡資訊");
+            await _graphicsCardInfoService.UploadOrUpdateGraphicsCardsAsync(deviceNo, _collectedGraphicsCards);
+            
+            // 標記為已上傳
+            _graphicsCardsUploaded = true;
+            LogService.Log("[MainViewModel] ✓ 顯卡資訊上傳流程完成，已標記為已上傳");
+        }
+
+        private void LoadStaticInfoAndSendToDb()
+        {
+            // --- 靜態資訊收集 ---
+            SystemInfoItems.Clear();
+            HardwareItems.Clear();
+            StorageVgaItems.Clear();
+
+            SystemInfoItems.Add(new BasicInfoData("電腦名稱", Environment.MachineName));
+            SystemInfoItems.Add(new BasicInfoData("作業系統", Environment.OSVersion.ToString()));
+            SystemInfoItems.Add(new BasicInfoData("Windows 版本", _infoService.GetWindowsVersion()));
+            SystemInfoItems.Add(new BasicInfoData("網路 IP", _infoService.GetLocalIPv4()));
+            SystemInfoItems.Add(new BasicInfoData("MAC 位址", _infoService.GetMacAddress()));
+
+            // 收集硬體資訊（這些資料會被重複使用）
+            string cpuName = _infoService.GetCpuName();
+            string cpuCoreCount = _infoService.GetCpuCoreCount();
+            string moboManufacturer = _infoService.GetMotherboardManufacturer();
+            string moboModel = _infoService.GetMotherboardModel();
+            string totalRam = _infoService.GetTotalRAM();
+            string availableRam = _infoService.GetAvailableRAM();
+            string ipAddress = _infoService.GetLocalIPv4();
+
+            HardwareItems.Add(new BasicInfoData("CPU 型號", cpuName));
+            HardwareItems.Add(new BasicInfoData("CPU 核心數", cpuCoreCount));
+            HardwareItems.Add(new BasicInfoData("主機板製造商", moboManufacturer));
+            HardwareItems.Add(new BasicInfoData("主機板型號", moboModel));
+            HardwareItems.Add(new BasicInfoData("記憶體總容量 (GB)", totalRam));
+            HardwareItems.Add(new BasicInfoData("記憶體剩餘容量 (GB)", availableRam));
+
+            StorageVgaItems.Add(new BasicInfoData("獨立顯示卡 (GPU)", _infoService.GetGpuName(true)));
+            StorageVgaItems.Add(new BasicInfoData("內建顯示卡", _infoService.GetGpuName(false)));
+            StorageVgaItems.Add(new BasicInfoData("顯示卡 VRAM (GB)", _infoService.GetGpuVRAM()));
+            var allDrives = _infoService.GetAllDrivesInfo();
+            foreach (var d in allDrives)
+                StorageVgaItems.Add(d);
+
+            // 收集所有顯卡（重複使用現有的查詢邏輯，避免重複查詢）
+            _collectedGraphicsCards = _infoService.GetAllGpuNames();
+            LogService.Log("[MainViewModel] 顯卡資訊已收集並暫存，供資料庫上傳使用");
+
+            // 暫存硬體資訊供上傳使用（避免重複收集）
+            _collectedHardwareInfo = new HardwareInfo
+            {
+                DeviceNo = string.Empty,  // 稍後設定
+                Processor = cpuName,
+                Motherboard = GetMotherboardInfo(moboManufacturer, moboModel),
+                MemoryTotalGB = ParseMemoryGB(totalRam),
+                MemoryAvailableGB = ParseMemoryGB(availableRam),
+                IPAddress = ipAddress
+            };
+
+            LogService.Log("[MainViewModel] 硬體資訊已收集並暫存，供 UI 顯示和資料庫上傳使用");
+
+            // --- 資料傳送邏輯 ---
+            if (AuthenticationService.Instance.CurrentUser != null)
+            {
+                var systemInfoList = new List<SystemInfoEntry>();
+                foreach (var item in SystemInfoItems) { systemInfoList.Add(new SystemInfoEntry { Category = "系統基本資訊", Item = item.Name, Value = item.Value }); }
+                foreach (var item in HardwareItems) { systemInfoList.Add(new SystemInfoEntry { Category = "核心硬體規格", Item = item.Name, Value = item.Value }); }
+                foreach (var item in StorageVgaItems) { systemInfoList.Add(new SystemInfoEntry { Category = "顯示與儲存", Item = item.Name, Value = item.Value }); }
+
+                _ = DataSendService.SendSystemInfoAsync(systemInfoList);
+            }
+        }
+
+        /// <summary>
+        /// 取得主機板資訊（製造商 + 型號）
+        /// </summary>
+        private string GetMotherboardInfo(string manufacturer, string model)
+        {
+            if (manufacturer == "不支援" && model == "不支援")
+                return "不支援";
+
+            if (manufacturer == "不支援")
+                return model;
+
+            if (model == "不支援")
+                return manufacturer;
+
+            return $"{manufacturer} {model}";
+        }
+
+        /// <summary>
+        /// 解析記憶體 GB 字串為 long
+        /// </summary>
+        private long ParseMemoryGB(string memoryStr)
+        {
+            if (string.IsNullOrEmpty(memoryStr) || memoryStr == "不支援")
+                return 0;
+
+            try
+            {
+                memoryStr = memoryStr.Replace("GB", "").Trim();
+
+                if (double.TryParse(memoryStr, out double value))
+                {
+                    return (long)Math.Round(value);
+                }
+
+                return 0;
+            }
+            catch
+            {
+                return 0;
+            }
         }
 
         private async Task UpdateUserIdentifierText()
@@ -169,45 +634,6 @@ namespace collect_all.ViewModels
             }
         }
 
-        private void LoadStaticInfoAndSendToDb()
-        {
-            // --- 靜態資訊收集 ---
-            SystemInfoItems.Clear();
-            HardwareItems.Clear();
-            StorageVgaItems.Clear();
-
-            SystemInfoItems.Add(new BasicInfoData("電腦名稱", Environment.MachineName));
-            SystemInfoItems.Add(new BasicInfoData("作業系統", Environment.OSVersion.ToString()));
-            SystemInfoItems.Add(new BasicInfoData("Windows 版本", _infoService.GetWindowsVersion()));
-            SystemInfoItems.Add(new BasicInfoData("網路 IP", _infoService.GetLocalIPv4()));
-            SystemInfoItems.Add(new BasicInfoData("MAC 位址", _infoService.GetMacAddress()));
-
-            HardwareItems.Add(new BasicInfoData("CPU 型號", _infoService.GetCpuName()));
-            HardwareItems.Add(new BasicInfoData("CPU 核心數", _infoService.GetCpuCoreCount()));
-            HardwareItems.Add(new BasicInfoData("主機板製造商", _infoService.GetMotherboardManufacturer()));
-            HardwareItems.Add(new BasicInfoData("主機板型號", _infoService.GetMotherboardModel()));
-            HardwareItems.Add(new BasicInfoData("記憶體總容量 (GB)", _infoService.GetTotalRAM()));
-            HardwareItems.Add(new BasicInfoData("記憶體剩餘容量 (GB)", _infoService.GetAvailableRAM()));
-
-            StorageVgaItems.Add(new BasicInfoData("獨立顯示卡 (GPU)", _infoService.GetGpuName(true)));
-            StorageVgaItems.Add(new BasicInfoData("內建顯示卡", _infoService.GetGpuName(false)));
-            StorageVgaItems.Add(new BasicInfoData("顯示卡 VRAM (GB)", _infoService.GetGpuVRAM()));
-            var allDrives = _infoService.GetAllDrivesInfo();
-            foreach (var d in allDrives)
-                StorageVgaItems.Add(d);
-
-            // --- 資料傳送邏輯 ---
-            if (AuthenticationService.Instance.CurrentUser != null)
-            {
-                var systemInfoList = new List<SystemInfoEntry>();
-                foreach (var item in SystemInfoItems) { systemInfoList.Add(new SystemInfoEntry { Category = "系統基本資訊", Item = item.Name, Value = item.Value }); }
-                foreach (var item in HardwareItems) { systemInfoList.Add(new SystemInfoEntry { Category = "核心硬體規格", Item = item.Name, Value = item.Value }); }
-                foreach (var item in StorageVgaItems) { systemInfoList.Add(new SystemInfoEntry { Category = "顯示與儲存", Item = item.Name, Value = item.Value }); }
-
-                _ = DataSendService.SendSystemInfoAsync(systemInfoList);
-            }
-        }
-
         private async Task UpdateSensorsAsync()
         {
             if (_isUpdatingSensors) return;
@@ -216,18 +642,18 @@ namespace collect_all.ViewModels
             // 平行抓取溫度、SMART 和使用率
             var tempsTask = Task.Run(() => _infoService.GetTemperatures());
             var smartsTask = Task.Run(() => _infoService.GetSmartHealth());
-            var usagesTask = Task.Run(() => _infoService.GetUsage()); // <-- 新增
+            var usagesTask = Task.Run(() => _infoService.GetUsage());
 
-            await Task.WhenAll(tempsTask, smartsTask, usagesTask); // <-- 等待全部完成
+            await Task.WhenAll(tempsTask, smartsTask, usagesTask);
 
             var temps = await tempsTask;
             var smarts = await smartsTask;
-            var usages = await usagesTask; // <-- 取得結果
+            var usages = await usagesTask;
 
             System.Windows.Application.Current.Dispatcher.Invoke(() =>
             {
-                UsageItems.Clear(); // <-- 新增
-                foreach (var item in usages) UsageItems.Add(item); // <-- 新增
+                UsageItems.Clear();
+                foreach (var item in usages) UsageItems.Add(item);
 
                 TemperatureItems.Clear();
                 foreach (var item in temps) TemperatureItems.Add(item);
@@ -237,8 +663,6 @@ namespace collect_all.ViewModels
 
             _isUpdatingSensors = false;
         }
-
-
 
         private async Task StartPeriodicUpdatesAsync(CancellationToken token)
         {
@@ -262,22 +686,98 @@ namespace collect_all.ViewModels
             catch (Exception ex)
             {
                 // 紀錄其他可能的錯誤
-                Console.WriteLine($"Periodic update error: {ex.Message}");
+                LogService.Log($"Periodic update error: {ex.Message}");
             }
         }
-        
-
 
         public override void Dispose()
         {
-            _cts.Cancel(); // <-- 新增：通知計時器停止
-            _cts.Dispose(); // <-- 新增：釋放資源
+            _cts.Cancel();
+            _cts.Dispose();
 
             AuthenticationService.Instance.AuthenticationStateChanged -= OnAuthenticationStateChanged;
+            Microsoft.Win32.SystemEvents.SessionEnding -= OnSystemShutdown;
+            
             _infoService.Dispose();
             base.Dispose();
         }
 
+        private void OnAuthenticationStateChanged(object? sender, EventArgs e)
+        {
+            System.Windows.Application.Current.Dispatcher.Invoke(async () =>
+            {
+                await UpdateUserIdentifierText();
+                
+                // 登入狀態改變後，重新觸發一次資料載入與傳送
+                LoadStaticInfoAndSendToDb();
+                
+                // 如果是登入事件，只上傳軟體資訊（不上傳開關機記錄，避免重複）
+                if (AuthenticationService.Instance.CurrentUser != null)
+                {
+                    await TrySendSoftwareInfoAsync();
+                    // 移除：await TrySendPowerLogsAsync(); // 開關機記錄只在 RequestMacLoginAsync 中上傳一次
+                }
+            });
+        }
+
+        // 系統關機時的處理
+        private void OnSystemShutdown(object sender, Microsoft.Win32.SessionEndingEventArgs e)
+        {
+            LogService.Log($"[MainViewModel] 偵測到系統關機事件：{e.Reason}");
+
+            try
+            {
+                // 檢查是否已登入
+                if (AuthenticationService.Instance.CurrentUser == null)
+                {
+                    LogService.Log("[MainViewModel] 使用者未登入，跳過關機前上傳");
+                    return;
+                }
+
+                // 取得裝置編號
+                string mac = _macLoginService.GetPrimaryMac();
+                var task = _macLoginService.CheckMacInTableAsync(mac);
+                task.Wait(TimeSpan.FromSeconds(5));  // 最多等待 5 秒
+                
+                var (found, macRecord) = task.Result;
+                
+                if (!found || macRecord == null || string.IsNullOrEmpty(macRecord.DeviceId))
+                {
+                    LogService.Log("[MainViewModel] 無法取得裝置編號，跳過關機前上傳");
+                    return;
+                }
+
+                string deviceNo = macRecord.DeviceId;
+
+                // 快速收集並上傳最新的開關機記錄
+                LogService.Log("[MainViewModel] 關機前快速上傳最新開關機記錄...");
+                
+                var powerLogs = _powerLogService.GetPowerLogs(7);  // 只收集最近 7 天（速度較快）
+                
+                if (powerLogs != null && powerLogs.Count > 0)
+                {
+                    var uploadTask = _powerLogService.UploadPowerLogsAsync(deviceNo, powerLogs);
+                    uploadTask.Wait(TimeSpan.FromSeconds(8));  // 最多等待 8 秒
+                    
+                    LogService.Log("[MainViewModel] ✓ 關機前上傳完成");
+                }
+                else
+                {
+                    LogService.Log("[MainViewModel] 沒有新的開關機記錄需要上傳");
+                }
+            }
+            catch (Exception ex)
+            {
+                LogService.Log($"[MainViewModel] ✗ 關機前上傳失敗：{ex.Message}");
+            }
+        }
+
+        // 測試用：手動觸發靜態資訊上傳
+        public async void TriggerStaticInfoUpload()
+        {
+            LogService.Log("[MainViewModel] 手動觸發靜態資訊上傳");
+            LoadStaticInfoAndSendToDb();
+        }
     }
 }
 

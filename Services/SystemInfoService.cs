@@ -309,6 +309,56 @@ public ObservableCollection<BasicInfoData> GetUsage()
             catch { return "不支援"; } // <-- 修改點
         }
 
+        /// <summary>
+        /// 取得所有顯卡名稱（重複使用現有的查詢邏輯）
+        /// </summary>
+        public List<string> GetAllGpuNames()
+        {
+            var gpuList = new List<string>();
+            
+            try
+            {
+                // 重複使用現有的 LibreHardwareMonitor 查詢
+                _computer.Accept(_visitor);
+                
+                // 取得所有類型的顯卡
+                var allGpus = _computer.Hardware.Where(h => 
+                    h.HardwareType == HardwareType.GpuNvidia || 
+                    h.HardwareType == HardwareType.GpuAmd || 
+                    h.HardwareType == HardwareType.GpuIntel);
+                
+                foreach (var gpu in allGpus)
+                {
+                    if (!string.IsNullOrEmpty(gpu.Name))
+                    {
+                        gpuList.Add(gpu.Name);
+                    }
+                }
+                
+                // 如果 LibreHardwareMonitor 沒找到，使用 WMI（與 GetGpuName 相同的備用邏輯）
+                if (gpuList.Count == 0)
+                {
+                    using var searcher = new ManagementObjectSearcher("SELECT Name FROM Win32_VideoController");
+                    foreach (var obj in searcher.Get())
+                    {
+                        string? name = obj["Name"]?.ToString();
+                        if (!string.IsNullOrWhiteSpace(name))
+                        {
+                            gpuList.Add(name.Trim());
+                        }
+                    }
+                }
+                
+                LogService.Log($"[SystemInfoService] 找到 {gpuList.Count} 個顯卡");
+            }
+            catch (Exception ex)
+            {
+                LogService.Log($"[SystemInfoService] 取得顯卡清單時發生錯誤：{ex.Message}");
+            }
+            
+            return gpuList;
+        }
+
         public void Dispose()
         {
             _computer.Close();

@@ -6,13 +6,21 @@ namespace collect_all.Models
 {
     public class SoftwareInfo
     {
-        [Key]
-        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
-        public int Id { get; set; }
+        [Required]
+        [StringLength(50)]
         public string DeviceNo { get; set; } = string.Empty;
+        
+        [Required]
+        [StringLength(255)]
         public string SoftwareName { get; set; } = string.Empty;
-        public string Publisher { get; set; } = string.Empty;
-        public DateTime? InstallationDate { get; set; }
+        
+        [Required]
+        [StringLength(100)]
         public string Version { get; set; } = string.Empty;
+        
+        [StringLength(255)]
+        public string? Publisher { get; set; }
+        
+        public DateTime? InstallationDate { get; set; }
     }
 }
