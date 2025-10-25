@@ -122,46 +122,52 @@
             </TabItem>
 
             <TabItem Header="設定">
-                <StackPanel Margin="15">
-                    
-                    <CheckBox Content="開機時自動啟動本程式"
-                              FontSize="16"
-                              IsChecked="{Binding IsStartupSet, Mode=TwoWay}" />
-                    <TextBlock Margin="20,5,0,0" Foreground="Gray"/>
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="15">
+                        
+                        <CheckBox Content="開機時自動啟動本程式"
+                                  FontSize="16"
+                                  IsChecked="{Binding IsStartupSet, Mode=TwoWay}" />
+                        <TextBlock Margin="20,5,0,0" Foreground="Gray"/>
 
-                    <TextBlock Text="即時監控更新頻率 (秒)：" Margin="0,15,0,2" FontSize="14" FontWeight="Bold"/>
-            
-                    <TextBlock Text="網路流量更新 (預設 1 秒，建議 1-5 秒)" Margin="5,0,0,2" />
-                    <TextBox Text="{Binding NetworkUpdateIntervalSeconds}" 
-                             Width="100" HorizontalAlignment="Left" />
+                        <TextBlock Text="即時監控更新頻率 (秒)：" Margin="0,15,0,2" FontSize="14" FontWeight="Bold"/>
+                
+                        <TextBlock Text="網路流量更新 (預設 1 秒)" Margin="5,0,0,2" />
+                        <TextBox Text="{Binding NetworkUpdateIntervalSeconds, Mode=OneWay}" 
+                                 Width="100" HorizontalAlignment="Left" 
+                                 IsReadOnly="True" 
+                                 Background="#F0F0F0"/>
 
-                    <TextBlock Text="硬體感應器更新 (預設 600 秒，建議 > 60 秒)" Margin="5,10,0,2" />
-                    <TextBox Text="{Binding SensorUpdateIntervalSeconds}" 
-                             Width="100" HorizontalAlignment="Left" />
+                        <TextBlock Text="硬體感應器更新 (預設 30 秒)" Margin="5,10,0,2" />
+                        <TextBox Text="{Binding SensorUpdateIntervalSeconds, Mode=OneWay}" 
+                                 Width="100" HorizontalAlignment="Left" 
+                                 IsReadOnly="True" 
+                                 Background="#F0F0F0"/>
 
-                    
-                    <Button Content="📊 即時日誌檢視器"
-                            Command="{Binding ShowLogViewerCommand}"
-                            Margin="0,20,0,0"
-                            Padding="10,5"
-                            HorizontalAlignment="Left"
-                            Background="Green"
-                            Foreground="White"
-                            FontWeight="Bold"/>
-                    
-                    <Button Content="顯示已安裝軟體"
-                            Command="{Binding ShowSoftwareInfoCommand}"
-                            Margin="0,15,0,0"
-                            Padding="10,5"
-                            HorizontalAlignment="Left"/>
+                        
+                        <Button Content="📊 即時日誌檢視器"
+                                Command="{Binding ShowLogViewerCommand}"
+                                Margin="0,20,0,0"
+                                Padding="10,5"
+                                HorizontalAlignment="Left"
+                                Background="Green"
+                                Foreground="White"
+                                FontWeight="Bold"/>
+                        
+                        <Button Content="顯示已安裝軟體"
+                                Command="{Binding ShowSoftwareInfoCommand}"
+                                Margin="0,15,0,0"
+                                Padding="10,5"
+                                HorizontalAlignment="Left"/>
 
-                    <Button Content="30日內開關機紀錄"
-                            Command="{Binding ShowBootHistoryCommand}"
-                            Margin="0,15,0,0"
-                            Padding="10,5"
-                            HorizontalAlignment="Left"/>
-                            
-                </StackPanel>
+                        <Button Content="30日內開關機紀錄"
+                                Command="{Binding ShowBootHistoryCommand}"
+                                Margin="0,15,0,0"
+                                Padding="10,5"
+                                HorizontalAlignment="Left"/>
+                                
+                    </StackPanel>
+                </ScrollViewer>
             </TabItem>
             
         </TabControl> <StackPanel Grid.Row="2" HorizontalAlignment="Center" Margin="0,5,0,5">

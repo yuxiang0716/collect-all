@@ -34,15 +34,15 @@ namespace collect_all.Services
                 {
                     LogService.Log("[HardwareInfoService] 資料庫連線成功");
 
-                    // 記錄收集到的硬體資訊
+                    // 記錄準備上傳的硬體資訊
                     LogService.Log($"[HardwareInfoService] 硬體資訊：");
                     LogService.Log($"  - 處理器: {currentInfo.Processor}");
                     LogService.Log($"  - 主機板: {currentInfo.Motherboard}");
-                    LogService.Log($"  - 記憶體總量: {currentInfo.MemoryTotalGB} GB");
-                    LogService.Log($"  - 記憶體可用: {currentInfo.MemoryAvailableGB} GB");
+                    LogService.Log($"  - 記憶體總容量: {currentInfo.MemoryTotalGB:F2} GB");
+                    LogService.Log($"  - 記憶體可用量: {currentInfo.MemoryAvailableGB:F2} GB");
                     LogService.Log($"  - IP 位址: {currentInfo.IPAddress}");
 
-                    // 查詢資料庫中是否已有該裝置的記錄
+                    // 查詢資料庫中是否已有此裝置的記錄
                     var existingInfo = await db.HardwareInfos
                         .FirstOrDefaultAsync(h => h.DeviceNo == deviceNo);
 
@@ -60,7 +60,7 @@ namespace collect_all.Services
                     }
                     else
                     {
-                        // 比對是否有變動
+                        // 檢查是否有變動
                         bool hasChanged = HasHardwareChanged(existingInfo, currentInfo);
 
                         if (hasChanged)
@@ -81,7 +81,7 @@ namespace collect_all.Services
                         }
                         else
                         {
-                            LogService.Log($"[HardwareInfoService] ? 硬體資訊無變動，不需要更新（裝置編號: {deviceNo}）");
+                            LogService.Log($"[HardwareInfoService] ? 硬體資訊無變動，不需更新（裝置編號: {deviceNo}）");
                         }
                     }
                 }
@@ -98,19 +98,19 @@ namespace collect_all.Services
         }
 
         /// <summary>
-        /// 比對硬體資訊是否有變動
+        /// 檢查硬體資訊是否有變動
         /// </summary>
         private bool HasHardwareChanged(HardwareInfo existing, HardwareInfo current)
         {
             return existing.Processor != current.Processor ||
                    existing.Motherboard != current.Motherboard ||
-                   existing.MemoryTotalGB != current.MemoryTotalGB ||
+                   Math.Abs(existing.MemoryTotalGB - current.MemoryTotalGB) > 0.01f ||
                    existing.IPAddress != current.IPAddress;
-            // 注意：MemoryAvailableGB 會一直變動，所以不比對
+            // 注意：MemoryAvailableGB 會常常變動，所以不比較
         }
 
         /// <summary>
-        /// 記錄比對的詳細資訊
+        /// 記錄比較詳細資訊
         /// </summary>
         private void LogComparisonDetails(HardwareInfo existing, HardwareInfo current)
         {
@@ -120,8 +120,8 @@ namespace collect_all.Services
             if (existing.Motherboard != current.Motherboard)
                 LogService.Log($"  - 主機板: {existing.Motherboard} → {current.Motherboard}");
 
-            if (existing.MemoryTotalGB != current.MemoryTotalGB)
-                LogService.Log($"  - 記憶體總量: {existing.MemoryTotalGB} GB → {current.MemoryTotalGB} GB");
+            if (Math.Abs(existing.MemoryTotalGB - current.MemoryTotalGB) > 0.01f)
+                LogService.Log($"  - 記憶體總容量: {existing.MemoryTotalGB:F2} GB → {current.MemoryTotalGB:F2} GB");
 
             if (existing.IPAddress != current.IPAddress)
                 LogService.Log($"  - IP 位址: {existing.IPAddress} → {current.IPAddress}");

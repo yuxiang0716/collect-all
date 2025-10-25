@@ -38,10 +38,23 @@ namespace collect_all.Services
             var list = new ObservableCollection<BasicInfoData>
             {
                 new BasicInfoData("CPU 溫度", GetCpuTemperature()),
-                new BasicInfoData("主機板溫度", GetMotherboardTemperature()),
-                new BasicInfoData("顯示卡溫度", GetGpuTemperature()),
-                new BasicInfoData("硬碟溫度", GetStorageTemperature())
+                new BasicInfoData("主機板溫度", GetMotherboardTemperature())
             };
+            
+            // 添加所有顯卡的溫度
+            var gpuTemps = GetAllGpuTemperatures();
+            foreach (var gpuTemp in gpuTemps)
+            {
+                list.Add(gpuTemp);
+            }
+            
+            // 添加所有硬碟的溫度
+            var storageTemps = GetAllStorageTemperatures();
+            foreach (var storageTemp in storageTemps)
+            {
+                list.Add(storageTemp);
+            }
+            
             return list;
         }
 
@@ -53,10 +66,23 @@ public ObservableCollection<BasicInfoData> GetUsage()
             var list = new ObservableCollection<BasicInfoData>
             {
                 new BasicInfoData("CPU 使用率", GetCpuUsage()),
-                new BasicInfoData("記憶體使用率", GetMemoryUsage()),
-                new BasicInfoData("顯示卡使用率", GetGpuUsage()),
-                new BasicInfoData("硬碟使用率", GetHddUsage())
+                new BasicInfoData("記憶體使用率", GetMemoryUsage())
             };
+            
+            // 添加所有顯卡的使用率
+            var gpuUsages = GetAllGpuUsages();
+            foreach (var gpuUsage in gpuUsages)
+            {
+                list.Add(gpuUsage);
+            }
+            
+            // 添加所有硬碟的使用率
+            var storageUsages = GetAllStorageUsages();
+            foreach (var storageUsage in storageUsages)
+            {
+                list.Add(storageUsage);
+            }
+            
             return list;
         }
 
@@ -107,6 +133,96 @@ public ObservableCollection<BasicInfoData> GetUsage()
             }
             return supported ? $"{maxUsage:F1} %" : "不支援";
         }
+        
+        /// <summary>
+        /// 取得所有顯卡的使用率
+        /// </summary>
+        private List<BasicInfoData> GetAllGpuUsages()
+        {
+            var list = new List<BasicInfoData>();
+            
+            try
+            {
+                var gpus = _computer.Hardware.Where(h => 
+                    h.HardwareType == HardwareType.GpuNvidia || 
+                    h.HardwareType == HardwareType.GpuAmd || 
+                    h.HardwareType == HardwareType.GpuIntel);
+                
+                foreach (var gpu in gpus)
+                {
+                    // 優先尋找 "GPU Core" 使用率
+                    var loadSensor = gpu.Sensors.FirstOrDefault(s => s.SensorType == SensorType.Load && s.Name.Contains("Core"));
+                    
+                    // 備用方案：任何 Load 感應器
+                    if (loadSensor == null)
+                    {
+                        loadSensor = gpu.Sensors.FirstOrDefault(s => s.SensorType == SensorType.Load);
+                    }
+                    
+                    string gpuName = gpu.Name;
+                    string usageValue = loadSensor?.Value != null ? $"{loadSensor.Value.Value:F1} %" : "不支援";
+                    
+                    list.Add(new BasicInfoData($"{gpuName} 使用率", usageValue));
+                }
+                
+                // 如果沒有找到任何顯卡，添加一個預設項目
+                if (list.Count == 0)
+                {
+                    list.Add(new BasicInfoData("顯示卡使用率", "不支援"));
+                }
+            }
+            catch (Exception ex)
+            {
+                LogService.Log($"[SystemInfoService] 取得顯卡使用率時發生錯誤：{ex.Message}");
+                list.Add(new BasicInfoData("顯示卡使用率", "錯誤"));
+            }
+            
+            return list;
+        }
+        
+        /// <summary>
+        /// 取得所有硬碟的使用率
+        /// </summary>
+        private List<BasicInfoData> GetAllStorageUsages()
+        {
+            var list = new List<BasicInfoData>();
+            
+            try
+            {
+                var storageDevices = _computer.Hardware.Where(h => h.HardwareType == HardwareType.Storage);
+                
+                foreach (var storage in storageDevices)
+                {
+                    // 尋找 "Total Activity" 或其他 Load 感應器
+                    var loadSensor = storage.Sensors.FirstOrDefault(s => s.SensorType == SensorType.Load && s.Name.Contains("Activity"));
+                    
+                    // 備用方案
+                    if (loadSensor == null)
+                    {
+                        loadSensor = storage.Sensors.FirstOrDefault(s => s.SensorType == SensorType.Load);
+                    }
+                    
+                    string storageName = storage.Name;
+                    string usageValue = loadSensor?.Value != null ? $"{loadSensor.Value.Value:F1} %" : "不支援";
+                    
+                    list.Add(new BasicInfoData($"{storageName} 使用率", usageValue));
+                }
+                
+                // 如果沒有找到任何硬碟，添加一個預設項目
+                if (list.Count == 0)
+                {
+                    list.Add(new BasicInfoData("硬碟使用率", "不支援"));
+                }
+            }
+            catch (Exception ex)
+            {
+                LogService.Log($"[SystemInfoService] 取得硬碟使用率時發生錯誤：{ex.Message}");
+                list.Add(new BasicInfoData("硬碟使用率", "錯誤"));
+            }
+            
+            return list;
+        }
+        
         #endregion
         
         #region Private Temperature Getters with Fallbacks
@@ -132,9 +248,9 @@ public ObservableCollection<BasicInfoData> GetUsage()
                     var celsius = (temp / 10.0) - 273.15;
                     return $"{celsius:F1} °C (WMI)";
                 }
-                return "不支援"; // <-- 修改點
+                return "不支援";
             }
-            catch { return "不支援"; } // <-- 修改點
+            catch { return "不支援"; }
         }
         
         private string GetMotherboardTemperature()
@@ -161,23 +277,104 @@ public ObservableCollection<BasicInfoData> GetUsage()
                         return $"{celsius:F1} °C (WMI)";
                     }
                 }
-                return "不支援"; // <-- 修改點
+                return "不支援";
             }
-            catch { return "不支援"; } // <-- 修改點
+            catch { return "不支援"; }
         }
 
         private string GetGpuTemperature()
         {
             var gpu = _computer.Hardware.FirstOrDefault(h => h.HardwareType == HardwareType.GpuNvidia || h.HardwareType == HardwareType.GpuAmd);
             var tempSensor = gpu?.Sensors.FirstOrDefault(s => s.SensorType == SensorType.Temperature);
-            return tempSensor?.Value != null ? $"{tempSensor.Value.Value:F1} °C" : "不支援"; // <-- 修改點
+            return tempSensor?.Value != null ? $"{tempSensor.Value.Value:F1} °C" : "不支援";
         }
 
         private string GetStorageTemperature()
         {
             var hdd = _computer.Hardware.FirstOrDefault(h => h.HardwareType == HardwareType.Storage);
             var tempSensor = hdd?.Sensors.FirstOrDefault(s => s.SensorType == SensorType.Temperature);
-            return tempSensor?.Value != null ? $"{tempSensor.Value.Value:F1} °C" : "不支援"; // <-- 修改點
+            return tempSensor?.Value != null ? $"{tempSensor.Value.Value:F1} °C" : "不支援";
+        }
+        
+        /// <summary>
+        /// 取得所有顯卡的溫度
+        /// </summary>
+        private List<BasicInfoData> GetAllGpuTemperatures()
+        {
+            var list = new List<BasicInfoData>();
+            
+            try
+            {
+                var gpus = _computer.Hardware.Where(h => 
+                    h.HardwareType == HardwareType.GpuNvidia || 
+                    h.HardwareType == HardwareType.GpuAmd || 
+                    h.HardwareType == HardwareType.GpuIntel);
+                
+                int gpuIndex = 1;
+                foreach (var gpu in gpus)
+                {
+                    var tempSensor = gpu.Sensors.FirstOrDefault(s => s.SensorType == SensorType.Temperature && s.Name.Contains("Core"));
+                    if (tempSensor == null)
+                    {
+                        tempSensor = gpu.Sensors.FirstOrDefault(s => s.SensorType == SensorType.Temperature);
+                    }
+                    
+                    string gpuName = gpu.Name;
+                    string tempValue = tempSensor?.Value != null ? $"{tempSensor.Value.Value:F1} °C" : "不支援";
+                    
+                    list.Add(new BasicInfoData($"{gpuName} 溫度", tempValue));
+                    gpuIndex++;
+                }
+                
+                // 如果沒有找到任何顯卡，添加一個預設項目
+                if (list.Count == 0)
+                {
+                    list.Add(new BasicInfoData("顯示卡溫度", "不支援"));
+                }
+            }
+            catch (Exception ex)
+            {
+                LogService.Log($"[SystemInfoService] 取得顯卡溫度時發生錯誤：{ex.Message}");
+                list.Add(new BasicInfoData("顯示卡溫度", "錯誤"));
+            }
+            
+            return list;
+        }
+        
+        /// <summary>
+        /// 取得所有硬碟的溫度
+        /// </summary>
+        private List<BasicInfoData> GetAllStorageTemperatures()
+        {
+            var list = new List<BasicInfoData>();
+            
+            try
+            {
+                var storageDevices = _computer.Hardware.Where(h => h.HardwareType == HardwareType.Storage);
+                
+                foreach (var storage in storageDevices)
+                {
+                    var tempSensor = storage.Sensors.FirstOrDefault(s => s.SensorType == SensorType.Temperature);
+                    
+                    string storageName = storage.Name;
+                    string tempValue = tempSensor?.Value != null ? $"{tempSensor.Value.Value:F1} °C" : "不支援";
+                    
+                    list.Add(new BasicInfoData($"{storageName} 溫度", tempValue));
+                }
+                
+                // 如果沒有找到任何硬碟，添加一個預設項目
+                if (list.Count == 0)
+                {
+                    list.Add(new BasicInfoData("硬碟溫度", "不支援"));
+                }
+            }
+            catch (Exception ex)
+            {
+                LogService.Log($"[SystemInfoService] 取得硬碟溫度時發生錯誤：{ex.Message}");
+                list.Add(new BasicInfoData("硬碟溫度", "錯誤"));
+            }
+            
+            return list;
         }
 
         #endregion

@@ -23,6 +23,8 @@ namespace collect_all.ViewModels
         private readonly PowerLogService _powerLogService;
         private readonly HardwareInfoService _hardwareInfoService;
         private readonly GraphicsCardInfoService _graphicsCardInfoService;
+        private readonly DiskInfoService _diskInfoService;  // 新增 DiskInfoService
+        private readonly SettingsService _settingsService;  // 新增 SettingsService
         private bool _isUpdatingSensors = false;
         private bool _isLoggingIn = false;  // 防止重複登入
 
@@ -34,7 +36,7 @@ namespace collect_all.ViewModels
         private CancellationTokenSource _cts = new CancellationTokenSource();
 
         private int _networkUpdateIntervalSeconds = 1;   // 網路預設 1 秒
-        private int _sensorUpdateIntervalSeconds = 600;  // 感應器預設 600 秒 (10分鐘)
+        private int _sensorUpdateIntervalSeconds = 30;  // 感應器預設 30 秒（改為 30 秒）
         private string _userIdentifierText = "正在初始化..."; // 初始文字
         
         // 暫存軟體清單
@@ -54,6 +56,10 @@ namespace collect_all.ViewModels
         // 顯卡資訊上傳標記和暫存
         private bool _graphicsCardsUploaded = false;
         private List<string>? _collectedGraphicsCards = null;
+        
+        // 磁碟資訊上傳標記和暫存
+        private bool _diskInfosUploaded = false;
+        private List<DiskInfo>? _collectedDiskInfos = null;
 
         private string _loginButtonText = "登入";
         public string LoginButtonText
@@ -102,41 +108,12 @@ namespace collect_all.ViewModels
         public string NetworkUpdateIntervalSeconds
         {
             get => _networkUpdateIntervalSeconds.ToString();
-            set
-            {
-                // 嘗試解析輸入值，必須是大於 0 的整數
-                if (int.TryParse(value, out int seconds) && seconds > 0)
-                {
-                    _networkUpdateIntervalSeconds = seconds;
-                    
-                    // 立刻更新正在運作的網路計時器
-                    if (_networkTimer != null)
-                    {
-                        _networkTimer.Stop();
-                        _networkTimer.Interval = TimeSpan.FromSeconds(_networkUpdateIntervalSeconds);
-                        _networkTimer.Start();
-                    }
-                }
-                // 通知 UI 更新 (即使解析失敗，也要讓 TextBox 恢復原狀)
-                OnPropertyChanged(); 
-            }
         }
 
         // --- 新增：綁定到設定頁面的感應器更新頻率 ---
         public string SensorUpdateIntervalSeconds
         {
             get => _sensorUpdateIntervalSeconds.ToString();
-            set
-            {
-                if (int.TryParse(value, out int seconds) && seconds > 0)
-                {
-                    _sensorUpdateIntervalSeconds = seconds;
-                    
-                    // 感應器任務使用 Task.Delay，我們需要*重啟*任務
-                    RestartPeriodicSensorUpdates();
-                }
-                OnPropertyChanged();
-            }
         }
 
 
@@ -156,6 +133,8 @@ namespace collect_all.ViewModels
             _powerLogService = new PowerLogService();
             _hardwareInfoService = new HardwareInfoService();
             _graphicsCardInfoService = new GraphicsCardInfoService();
+            _diskInfoService = new DiskInfoService();  // 初始化 DiskInfoService
+            _settingsService = new SettingsService();  // 初始化 SettingsService
 
             SystemInfoItems = new ObservableCollection<BasicInfoData>();
             HardwareItems = new ObservableCollection<BasicInfoData>();
@@ -227,14 +206,74 @@ namespace collect_all.ViewModels
             // 2. 執行登入流程
             await RequestMacLoginAsync(onStartup: true);
 
+            // 2.5. 登入後載入設定（新增）
+            await LoadSettingsAsync();
+
             // 3. 登入流程結束後，載入系統資訊並顯示資料
             System.Windows.Application.Current.Dispatcher.Invoke(() =>
             {
                 LoadStaticInfoAndSendToDb();
+                // 登入時立即執行一次感應器更新（溫度、SMART、使用率）
                 _ = UpdateSensorsAsync();
             });
             
+            // 4. 啟動週期性更新（依據設定的間隔）
             _ = StartPeriodicUpdatesAsync(_cts.Token);
+        }
+
+        /// <summary>
+        /// 載入設定（根據登入狀態和公司名稱）
+        /// </summary>
+        private async Task LoadSettingsAsync()
+        {
+            try
+            {
+                var currentUser = AuthenticationService.Instance.CurrentUser;
+                string companyName = currentUser?.CompanyName ?? string.Empty;
+
+                if (string.IsNullOrEmpty(companyName))
+                {
+                    LogService.Log("[MainViewModel] 使用者未登入，使用預設設定");
+                    companyName = "admin";  // 未登入時嘗試使用 admin 設定
+                }
+
+                // 呼叫 SettingsService 取得設定
+                var (networkInterval, hardwareInterval) = await _settingsService.GetSettingsAsync(companyName);
+
+                // 更新間隔設定
+                _networkUpdateIntervalSeconds = networkInterval;
+                _sensorUpdateIntervalSeconds = hardwareInterval;
+
+                LogService.Log($"[MainViewModel] 設定已載入 - 網路更新間隔: {networkInterval} 秒, 硬體更新間隔: {hardwareInterval} 秒");
+
+                // 通知 UI 更新（如果有綁定）
+                OnPropertyChanged(nameof(NetworkUpdateIntervalSeconds));
+                OnPropertyChanged(nameof(SensorUpdateIntervalSeconds));
+
+                // 重新啟動計時器和週期更新（使用新的間隔）
+                System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                {
+                    // 重新設定網路計時器
+                    if (_networkTimer != null)
+                    {
+                        _networkTimer.Stop();
+                        _networkTimer.Interval = TimeSpan.FromSeconds(_networkUpdateIntervalSeconds);
+                        _networkTimer.Start();
+                        LogService.Log($"[MainViewModel] 網路計時器已更新為 {_networkUpdateIntervalSeconds} 秒");
+                    }
+                });
+
+                // 重新啟動感應器週期更新
+                RestartPeriodicSensorUpdates();
+                LogService.Log($"[MainViewModel] 感應器週期更新已重啟，間隔 {_sensorUpdateIntervalSeconds} 秒");
+            }
+            catch (Exception ex)
+            {
+                LogService.Log($"[MainViewModel] 載入設定時發生錯誤：{ex.Message}");
+                // 發生錯誤時使用預設值
+                _networkUpdateIntervalSeconds = 1;
+                _sensorUpdateIntervalSeconds = 30;
+            }
         }
 
         private async Task RequestMacLoginAsync(bool onStartup = false)
@@ -271,6 +310,7 @@ namespace collect_all.ViewModels
                     await TrySendPowerLogsAsync();  // 同時上傳開關機記錄
                     await TrySendHardwareInfoAsync();  // 同時上傳硬體資訊
                     await TrySendGraphicsCardsAsync();  // 同時上傳顯卡資訊
+                    await TrySendDiskInfosAsync();  // 同時上傳磁碟資訊
 
                     // 登入成功後隱藏登入按鈕
                     if (AuthenticationService.Instance.CurrentUser != null)
@@ -292,6 +332,7 @@ namespace collect_all.ViewModels
                     await TrySendPowerLogsAsync();  // 同時上傳開關機記錄
                     await TrySendHardwareInfoAsync();  // 同時上傳硬體資訊
                     await TrySendGraphicsCardsAsync();  // 同時上傳顯卡資訊
+                    await TrySendDiskInfosAsync();  // 同時上傳磁碟資訊
 
                     // 登入成功後隱藏登入按鈕
                     if (AuthenticationService.Instance.CurrentUser != null)
@@ -323,6 +364,7 @@ namespace collect_all.ViewModels
                     await TrySendPowerLogsAsync();  // 同時上傳開關機記錄
                     await TrySendHardwareInfoAsync();  // 同時上傳硬體資訊
                     await TrySendGraphicsCardsAsync();  // 同時上傳顯卡資訊
+                    await TrySendDiskInfosAsync();  // 同時上傳磁碟資訊
 
                     // 登入成功後隱藏登入按鈕
                     if (AuthenticationService.Instance.CurrentUser != null)
@@ -579,6 +621,53 @@ namespace collect_all.ViewModels
             LogService.Log("[MainViewModel] ✓ 顯卡資訊上傳流程完成，已標記為已上傳");
         }
 
+        private async Task TrySendDiskInfosAsync()
+        {
+            // 檢查是否已經上傳過（每次啟動只上傳一次）
+            if (_diskInfosUploaded)
+            {
+                LogService.Log("[MainViewModel] 磁碟資訊已經上傳過，跳過重複上傳");
+                return;
+            }
+
+            // 檢查使用者是否已登入
+            var currentUser = AuthenticationService.Instance.CurrentUser;
+            if (currentUser == null)
+            {
+                LogService.Log("[MainViewModel] 使用者未登入，無法上傳磁碟資訊");
+                return;
+            }
+
+            // 取得裝置編號
+            string mac = _macLoginService.GetPrimaryMac();
+            var (found, macRecord) = await _macLoginService.CheckMacInTableAsync(mac);
+
+            if (!found || macRecord == null || string.IsNullOrEmpty(macRecord.DeviceId))
+            {
+                LogService.Log("[MainViewModel] 無法取得裝置編號，無法上傳磁碟資訊");
+                return;
+            }
+
+            string deviceNo = macRecord.DeviceId;
+            
+            // 收集磁碟資訊（使用 DiskInfoService）
+            var diskInfos = _diskInfoService.CollectDiskInfos(deviceNo);
+            
+            if (diskInfos == null || diskInfos.Count == 0)
+            {
+                LogService.Log("[MainViewModel] ✗ 磁碟資訊收集失敗或無磁碟");
+                return;
+            }
+
+            // 上傳磁碟資訊
+            LogService.Log($"[MainViewModel] 準備上傳 {diskInfos.Count} 個磁碟槽資訊");
+            await _diskInfoService.UploadOrUpdateDiskInfosAsync(deviceNo, diskInfos);
+            
+            // 標記為已上傳
+            _diskInfosUploaded = true;
+            LogService.Log("[MainViewModel] ✓ 磁碟資訊上傳流程完成，已標記為已上傳");
+        }
+
         private void LoadStaticInfoAndSendToDb()
         {
             // --- 靜態資訊收集 ---
@@ -662,9 +751,9 @@ namespace collect_all.ViewModels
         }
 
         /// <summary>
-        /// 解析記憶體 GB 字串為 long
+        /// 解析記憶體 GB 字串為 float
         /// </summary>
-        private long ParseMemoryGB(string memoryStr)
+        private float ParseMemoryGB(string memoryStr)
         {
             if (string.IsNullOrEmpty(memoryStr) || memoryStr == "不支援")
                 return 0;
@@ -673,9 +762,9 @@ namespace collect_all.ViewModels
             {
                 memoryStr = memoryStr.Replace("GB", "").Trim();
 
-                if (double.TryParse(memoryStr, out double value))
+                if (float.TryParse(memoryStr, out float value))
                 {
-                    return (long)Math.Round(value);
+                    return value;  // 保留小數點精度
                 }
 
                 return 0;
@@ -906,12 +995,18 @@ private void SetupNetworkTimer()
             {
                 await UpdateUserIdentifierText();
                 
+                // 登入狀態改變後，重新載入設定（新增）
+                await LoadSettingsAsync();
+                
                 // 登入狀態改變後，重新觸發一次資料載入與傳送
                 LoadStaticInfoAndSendToDb();
                 
-                // 如果是登入事件，只上傳軟體資訊（不上傳開關機記錄，避免重複）
+                // 如果是登入事件，立即抓取一次感應器資料
                 if (AuthenticationService.Instance.CurrentUser != null)
                 {
+                    LogService.Log("[MainViewModel] 登入成功，立即執行一次感應器資料抓取");
+                    await UpdateSensorsAsync();
+                    
                     await TrySendSoftwareInfoAsync();
                     // 移除：await TrySendPowerLogsAsync(); // 開關機記錄只在 RequestMacLoginAsync 中上傳一次
                 }

@@ -10,8 +10,8 @@ namespace collect_all.Models
         public int Id { get; set; }
         public string DeviceNo { get; set; } = string.Empty;
         public string SlotName { get; set; } = string.Empty;
-        public long TotalCapacityGB { get; set; }
-        public long AvailableCapacityGB { get; set; }
+        public float TotalCapacityGB { get; set; }
+        public float AvailableCapacityGB { get; set; }
         public string DeviceInfoDeviceNo { get; set; } = string.Empty;
     }
 }
