@@ -506,6 +506,56 @@ public ObservableCollection<BasicInfoData> GetUsage()
             catch { return "不支援"; } // <-- 修改點
         }
 
+
+        public string GetChassisType()
+        {
+            try
+            {
+                // 查詢 Win32_SystemEnclosure 類別的 ChassisTypes 屬性
+                using (var searcher = new ManagementObjectSearcher("SELECT ChassisTypes FROM Win32_SystemEnclosure"))
+                {
+                    foreach (var obj in searcher.Get())
+                    {
+                        var chassisTypes = obj["ChassisTypes"] as ushort[];
+
+                        // ChassisTypes 是一個陣列，但我們通常只關心第一個值
+                        if (chassisTypes != null && chassisTypes.Length > 0)
+                        {
+                            // 根據 Microsoft 文件定義的值來判斷
+                            // 參考: https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-systemenclosure
+                            switch (chassisTypes[0])
+                            {
+                                case 8: // Portable
+                                case 9: // Laptop (筆電)
+                                case 10: // Notebook (筆記本)
+                                case 14: // Sub Notebook
+                                    return "筆記型電腦 (Laptop)";
+
+                                case 3: // Desktop (桌機)
+                                case 4: // Low Profile Desktop
+                                case 5: // Pizza Box
+                                case 6: // Mini Tower
+                                case 7: // Tower (塔式)
+                                case 13: // All in One (一體式電腦)
+                                    return "桌上型電腦 (Desktop)";
+
+                                case 17: // Main System Chassis
+                                case 23: // Rack Mount Chassis (機架式)
+                                    return "伺服器 (Server)";
+
+                                case 1: return "其他 (Other)";
+                                case 2: return "未知 (Unknown)";
+                            }
+                        }
+                    }
+                }
+                return "未知 (WMI)";
+            }
+            // 沿用您現有的錯誤處理
+            catch { return "不支援"; }
+        }
+        
+
         /// <summary>
         /// 取得所有顯卡名稱（重複使用現有的查詢邏輯）
         /// </summary>

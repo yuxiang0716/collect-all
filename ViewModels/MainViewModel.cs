@@ -675,6 +675,8 @@ namespace collect_all.ViewModels
             HardwareItems.Clear();
             StorageVgaItems.Clear();
 
+            SystemInfoItems.Add(new BasicInfoData("電腦類型", _infoService.GetChassisType()));
+
             SystemInfoItems.Add(new BasicInfoData("電腦名稱", Environment.MachineName));
             SystemInfoItems.Add(new BasicInfoData("作業系統", Environment.OSVersion.ToString()));
             SystemInfoItems.Add(new BasicInfoData("Windows 版本", _infoService.GetWindowsVersion()));
